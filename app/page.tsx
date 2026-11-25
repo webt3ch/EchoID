@@ -1,31 +1,627 @@
 "use client";
-import { useState } from "react";
-import { AudioLines, Search, Library, History, Settings2, Mic, Sparkles, Upload, Bookmark, Clock3, Heart, ArrowUpRight, Check, X, Music2, Trash2, ShieldCheck, Globe, SlidersHorizontal, UserRound } from "lucide-react";
+
+import { useEffect, useRef, useState } from "react";
+import {
+  AudioLines,
+  Search,
+  Library,
+  History as HistoryIcon,
+  Settings2,
+  Mic,
+  Sparkles,
+  Upload,
+  Bookmark,
+  Clock3,
+  Heart,
+  ArrowUpRight,
+  Check,
+  X,
+  Music2,
+  Trash2,
+  ShieldCheck,
+  Globe,
+  SlidersHorizontal,
+  UserRound,
+  ExternalLink,
+  Disc3,
+  LoaderCircle,
+} from "lucide-react";
 
 type Page = "Discover" | "Your library" | "History" | "Settings" | "Account";
-type Song = { title:string; artist:string; album:string; color:string };
-const songs:Song[]=[
- {title:"Midnight City",artist:"M83",album:"Hurry Up, We're Dreaming · 2011",color:"violet"},
- {title:"A Moment Apart",artist:"ODESZA",album:"A Moment Apart · 2017",color:"blue"},
- {title:"The Less I Know the Better",artist:"Tame Impala",album:"Currents · 2015",color:"orange"}
-];
-function Cover({song}:{song:Song}) { return <div className={"cover "+song.color}><Music2 size={24}/></div>; }
-export default function Home(){
- const [page,setPage]=useState<Page>("Discover"),[mode,setMode]=useState("Sound"),[query,setQuery]=useState(""),[notice,setNotice]=useState(""),[results,setResults]=useState(false),[saved,setSaved]=useState<string[]>([]),[history,setHistory]=useState<Song[]>([]),[dark,setDark]=useState(true),[privateMode,setPrivateMode]=useState(true),[language,setLanguage]=useState("English"),[name,setName]=useState(""),[email,setEmail]=useState("");
- const [selectedFile,setSelectedFile]=useState("");
- function search(){if(!query.trim()){setNotice("Add a lyric or a few details to start.");return;}setResults(true);setHistory([songs[0],...history.filter(s=>s.title!==songs[0].title)].slice(0,10));setNotice("Demo results only. Live recognition is planned for phase two.");}
- function toggle(song:Song){setSaved(saved.includes(song.title)?saved.filter(s=>s!==song.title):[song.title,...saved]);}
- const nav=(p:Page,Icon:typeof Search)=><button className={"nav-item "+(page===p?"active":"")} onClick={()=>{setPage(p);setNotice("");}}><Icon size={17}/>{p}</button>;
- return <main className={"app-shell "+(dark?"":"light-theme")}><aside className="sidebar"><button className="brand" onClick={()=>setPage("Discover")}><span className="brand-mark"><AudioLines size={21}/></span><span>echo<span className="brand-light">id</span></span></button><div className="side-label">WORKSPACE</div><nav className="side-nav">{nav("Discover",Search)}{nav("Your library",Library)}{nav("History",History)}</nav><div className="side-bottom"><div className="upgrade-card"><div className="upgrade-icon"><Sparkles size={17}/></div><strong>Find your next favorite</strong><p>Explore music beyond the songs you already know.</p><button onClick={()=>{setPage("Discover");setMode("Describe");}}>Explore discovery <ArrowUpRight size={14}/></button></div>{nav("Settings",Settings2)}{nav("Account",UserRound)}</div></aside>
- <section className="main-content"><header className="topbar"><div className="breadcrumb">Workspace <span>/</span> <strong>{page}</strong></div><span className="status-pill"><i/> Frontend demo</span></header><div className="content-wrap">
- {page==="Discover"&&<><div className="hero-heading"><div><div className="eyebrow"><span/> MUSIC DISCOVERY, REIMAGINED</div><h1>Every song has<br/>a <span>story.</span></h1><p>Find the music you feel. Search by sound, lyrics, or the melody stuck in your head.</p></div><div className="hero-art"><div className="orb orb-one"/><div className="orb orb-two"/><div className="orb-core"><AudioLines size={35}/></div><div className="orbit orbit-one"/><div className="orbit orbit-two"/></div></div>
- <section className="search-card"><div className="mode-tabs">{["Sound","Lyrics","Hum","Describe"].map(m=><button key={m} className={"mode-tab "+(mode===m?"selected":"")} onClick={()=>{setMode(m);setNotice("");}}>{m==="Sound"?<AudioLines size={16}/>:m==="Lyrics"?<Search size={16}/>:m==="Hum"?<Mic size={16}/>:<Sparkles size={16}/>}{m}</button>)}</div><div className="search-body">{mode==="Sound"?<><div className="listen-button"><button onClick={()=>{setResults(true);setHistory([songs[0],...history]);setNotice("Demo match shown. Audio recognition is not connected yet.");}}><AudioLines size={29}/></button><span className="pulse pulse-a"/><span className="pulse pulse-b"/></div><h2>What’s that song?</h2><p>Tap to identify a song playing around you.</p><div className="search-divider"><span>OR</span></div><label className="upload-button"><Upload size={16}/> Upload an audio file <span>MP3, WAV, M4A</span><input type="file" accept="audio/*" hidden onChange={e=>setSelectedFile(e.target.files?.[0]?.name||"")}/></label>{selectedFile&&<p>{selectedFile} selected · recognition connects in phase two</p>}</>:<><div className="text-search-icon">{mode==="Lyrics"?<Search size={21}/>:mode==="Hum"?<Mic size={21}/>:<Sparkles size={21}/>}</div><h2>{mode==="Lyrics"?"A line is all you need.":mode==="Hum"?"Hum it. Find it.":"Describe what you remember."}</h2><p>{mode==="Lyrics"?"Type any lyric you remember":mode==="Hum"?"Hum or whistle the melody":"Describe the song in your own words"}</p><div className="query-box"><textarea value={query} onChange={e=>setQuery(e.target.value)} placeholder={mode==="Lyrics"?"A lyric or phrase you remember…":mode==="Hum"?"Hum recognition will use your microphone…":"A mellow house track with a female vocal…"} rows={2}/><button onClick={search}><ArrowUpRight size={19}/></button></div>{mode==="Hum"&&<button className="secondary-button" onClick={()=>setNotice("Microphone humming capture will connect in phase two.")}><Mic size={16}/> Start humming</button>}</>}{notice&&<div className="inline-notice" role="status"><span>{notice}</span><button onClick={()=>setNotice("")}><X size={14}/></button></div>}</div><div className="card-footer"><span><span className="privacy-dot"/> Private by design</span><span>Demo data · AI not connected</span></div></section>
- {results&&<section className="results-section"><div className="section-head"><div><h3>Possible matches</h3><p>Illustrative results · not a live identification</p></div><button className="text-link" onClick={()=>setResults(false)}>Clear <X size={14}/></button></div><div className="result-list">{songs.map((s,i)=><article className="result-row" key={s.title}><span className="rank">0{i+1}</span><Cover song={s}/><div className="song-meta"><strong>{s.title}</strong><span>{s.artist} · {s.album}</span></div><span className="match-label">{i===0?"Strong match":"Possible match"}</span><button className="round-action" onClick={()=>toggle(s)} aria-label="Save song">{saved.includes(s.title)?<Heart size={17} fill="currentColor"/>:<Bookmark size={17}/>}</button></article>)}</div></section>}
- <section className="below-grid"><div className="section-head"><div><h3>Your discovery space</h3><p>Saved songs and recent finds appear in your library.</p></div><button className="text-link" onClick={()=>setPage("History")}>View history <ArrowUpRight size={14}/></button></div><div className="empty-library"><div className="empty-icon"><Bookmark size={21}/></div><div><strong>Your next favorite is out there.</strong><p>Identify a song to start building your personal music library.</p></div><Check size={15}/></div></section></>}
- {page==="Your library"&&<section className="page-panel"><div className="page-title"><div className="eyebrow"><span/> YOUR COLLECTION</div><h1>Your <span>library.</span></h1><p>The songs you save, all in one place.</p></div><div className="library-toolbar"><span><Bookmark size={16}/> {saved.length} saved songs</span><button className="secondary-button" onClick={()=>setPage("Discover")}><Search size={15}/> Discover music</button></div>{saved.length?songs.filter(s=>saved.includes(s.title)).map(s=><article className="result-row" key={s.title}><Cover song={s}/><div className="song-meta"><strong>{s.title}</strong><span>{s.artist} · {s.album}</span></div><button className="round-action" onClick={()=>toggle(s)}><Heart size={17} fill="currentColor"/></button></article>):<div className="empty-state"><div className="empty-icon"><Library size={24}/></div><h2>Your library starts here.</h2><p>Save songs from your recognition results and they’ll appear here.</p><button className="primary-button" onClick={()=>setPage("Discover")}>Find a song <ArrowUpRight size={16}/></button></div>}</section>}
- {page==="History"&&<section className="page-panel"><div className="page-title"><div className="eyebrow"><span/> RECENT DISCOVERIES</div><h1>Your <span>history.</span></h1><p>Pick up where your music discovery left off.</p></div><div className="library-toolbar"><span><Clock3 size={16}/> {history.length} recent searches</span><button className="text-link" onClick={()=>setHistory([])}><Trash2 size={14}/> Clear history</button></div>{history.length?history.map(s=><article className="result-row" key={s.title}><Cover song={s}/><div className="song-meta"><strong>{s.title}</strong><span>{s.artist} · {s.album}</span></div><button className="round-action" onClick={()=>toggle(s)}><Bookmark size={17}/></button></article>):<div className="empty-state"><div className="empty-icon"><History size={24}/></div><h2>No discoveries yet.</h2><p>Once you identify a song, it will be available here.</p><button className="primary-button" onClick={()=>setPage("Discover")}>Start identifying <ArrowUpRight size={16}/></button></div>}</section>}
- {page==="Settings"&&<section className="page-panel"><div className="page-title"><div className="eyebrow"><span/> PERSONALIZE ECHOID</div><h1>Make it <span>yours.</span></h1><p>Manage your experience and privacy preferences.</p></div><div className="settings-list"><div className="settings-row"><div className="settings-symbol"><SlidersHorizontal size={18}/></div><div className="settings-copy"><strong>Appearance</strong><span>Choose how EchoID looks on this device.</span></div><button className="toggle-control" onClick={()=>setDark(!dark)}>{dark?"Dark":"Light"}</button></div><div className="settings-row"><div className="settings-symbol"><ShieldCheck size={18}/></div><div className="settings-copy"><strong>Private recognition</strong><span>Keep activity private in this demo.</span></div><button className={privateMode?"switch on":"switch"} onClick={()=>setPrivateMode(!privateMode)}><i/></button></div><div className="settings-row"><div className="settings-symbol"><Globe size={18}/></div><div className="settings-copy"><strong>Language</strong><span>Choose your preferred interface language.</span></div><select value={language} onChange={e=>setLanguage(e.target.value)}><option>English</option><option>Italiano</option><option>Español</option></select></div><div className="settings-row"><div className="settings-symbol"><Trash2 size={18}/></div><div className="settings-copy"><strong>Clear local data</strong><span>Remove saved songs and recent searches.</span></div><button className="danger-button" onClick={()=>{setSaved([]);setHistory([]);setNotice("Local demo data cleared.");}}>Clear data</button></div></div>{notice&&<div className="inline-notice">{notice}</div>}</section>}
- {page==="Account"&&<section className="page-panel"><div className="page-title"><div className="eyebrow"><span/> YOUR ECHOID PROFILE</div><h1>Your music, <span>your space.</span></h1><p>Account sign-in and cloud sync will be connected in phase two.</p></div><div className="account-card"><div className="account-avatar"><UserRound size={30}/></div><h2>Guest profile</h2><p>Set a display name for this local demo.</p><label>Display name<input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name"/></label><label>Email address<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com"/></label><div className="inline-notice">Profile fields are local demo state. No account is created.</div></div></section>}
- <footer className="page-footer"><span>© 2026 EchoID</span><span>Music discovery, with a little more feeling.</span><span>Phase 1 · Frontend demo</span></footer>
- </div></section></main>;
+type SearchMode = "Sound" | "Lyrics" | "Hum" | "Describe";
+type Song = {
+  title: string;
+  artist: string;
+  album: string;
+  color: string;
+  artworkUrl?: string;
+  songLink?: string;
+  appleMusicUrl?: string;
+  spotifyUrl?: string;
+  deezerUrl?: string;
+  releaseDate?: string;
+  timecode?: string;
+};
+
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+const MAX_RECORDING_SECONDS = 12;
+
+function Cover({ song, large = false }: { song: Song; large?: boolean }) {
+  return (
+    <div
+      className={"cover " + song.color + (large ? " cover-large" : "")}
+      aria-label={song.title + " artwork"}
+    >
+      {song.artworkUrl ? <img src={song.artworkUrl} alt="" /> : <Music2 size={24} />}
+    </div>
+  );
+}
+
+function readStored<T>(key: string, fallback: T): T {
+  try {
+    const value = window.localStorage.getItem(key);
+    return value ? (JSON.parse(value) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export default function Home() {
+  const [page, setPage] = useState<Page>("Discover");
+  const [mode, setMode] = useState<SearchMode>("Sound");
+  const [notice, setNotice] = useState("");
+  const [saved, setSaved] = useState<Song[]>([]);
+  const [history, setHistory] = useState<Song[]>([]);
+  const [currentTrack, setCurrentTrack] = useState<Song | null>(null);
+  const [dark, setDark] = useState(true);
+  const [language, setLanguage] = useState("English");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [selectedFile, setSelectedFile] = useState("");
+  const [isRecognizing, setIsRecognizing] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [providerConfigured, setProviderConfigured] = useState(false);
+  const [storageReady, setStorageReady] = useState(false);
+
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const recordingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setSaved(readStored<Song[]>("echoid:saved", []));
+    setHistory(readStored<Song[]>("echoid:history", []));
+    setDark(readStored<boolean>("echoid:dark", true));
+    setLanguage(readStored<string>("echoid:language", "English"));
+    setName(readStored<string>("echoid:name", ""));
+    setEmail(readStored<string>("echoid:email", ""));
+    setStorageReady(true);
+
+    fetch("/api/recognize", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((data: { configured?: boolean }) => setProviderConfigured(Boolean(data.configured)))
+      .catch(() => setProviderConfigured(false));
+  }, []);
+
+  useEffect(() => {
+    if (!storageReady) return;
+    try {
+      window.localStorage.setItem("echoid:saved", JSON.stringify(saved));
+      window.localStorage.setItem("echoid:history", JSON.stringify(history));
+      window.localStorage.setItem("echoid:dark", JSON.stringify(dark));
+      window.localStorage.setItem("echoid:language", JSON.stringify(language));
+      window.localStorage.setItem("echoid:name", JSON.stringify(name));
+      window.localStorage.setItem("echoid:email", JSON.stringify(email));
+    } catch {
+      setNotice("This browser could not save local data. Check its storage settings.");
+    }
+  }, [saved, history, dark, language, name, email, storageReady]);
+
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) clearTimeout(recordingTimerRef.current);
+      if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
+
+  async function recognizeAudio(audio: Blob, filename: string) {
+    if (audio.size === 0) {
+      setNotice("The recording is empty. Try again.");
+      return;
+    }
+    if (audio.size > MAX_UPLOAD_BYTES) {
+      setNotice("The audio file is larger than 10 MB. Choose a shorter file.");
+      return;
+    }
+
+    setIsRecognizing(true);
+    setCurrentTrack(null);
+    setNotice("Sending audio securely to the recognition service…");
+
+    try {
+      const body = new FormData();
+      body.append("audio", audio, filename);
+      const response = await fetch("/api/recognize", {
+        method: "POST",
+        body,
+        cache: "no-store",
+      });
+      const data = (await response.json()) as {
+        matched?: boolean;
+        message?: string;
+        track?: {
+          title?: string;
+          artist?: string;
+          album?: string;
+          releaseDate?: string;
+          timecode?: string;
+          songLink?: string;
+          artworkUrl?: string;
+          appleMusicUrl?: string;
+          spotifyUrl?: string;
+          deezerUrl?: string;
+        };
+      };
+
+      if (!response.ok) {
+        throw new Error(data.message || "Recognition failed. Please try again.");
+      }
+      if (!data.matched || !data.track?.title || !data.track.artist) {
+        setNotice(data.message || "No match found. Try a clearer sample.");
+        return;
+      }
+
+      const track: Song = {
+        title: data.track.title,
+        artist: data.track.artist,
+        album: data.track.album || "Album not available",
+        color: "violet",
+        artworkUrl: data.track.artworkUrl,
+        songLink: data.track.songLink,
+        appleMusicUrl: data.track.appleMusicUrl,
+        spotifyUrl: data.track.spotifyUrl,
+        deezerUrl: data.track.deezerUrl,
+        releaseDate: data.track.releaseDate,
+        timecode: data.track.timecode,
+      };
+
+      setCurrentTrack(track);
+      setHistory((previous) =>
+        [track, ...previous.filter((item) => item.title !== track.title || item.artist !== track.artist)].slice(0, 30),
+      );
+      setNotice("Track identified successfully.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Something went wrong. Try again.");
+    } finally {
+      setIsRecognizing(false);
+    }
+  }
+
+  async function handleFileSelection(file?: File) {
+    if (!file) return;
+    setSelectedFile(file.name);
+    if (!file.type.toLowerCase().startsWith("audio/")) {
+      setNotice("Choose a supported audio file.");
+      return;
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setNotice("The audio file is larger than 10 MB. Choose a shorter file.");
+      return;
+    }
+    await recognizeAudio(file, file.name);
+  }
+
+  async function toggleRecording() {
+    if (isRecording) {
+      if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+      return;
+    }
+    if (isRecognizing) return;
+
+    if (!navigator.mediaDevices?.getUserMedia || !("MediaRecorder" in window)) {
+      setNotice("Microphone recording is not supported by this browser. Upload an audio file instead.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      streamRef.current = stream;
+
+      const supportedTypes = [
+        "audio/mp4",
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/ogg;codecs=opus",
+      ];
+      const mimeType = supportedTypes.find((type) => MediaRecorder.isTypeSupported(type));
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      const chunks: BlobPart[] = [];
+
+      recorderRef.current = recorder;
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunks.push(event.data);
+      };
+      recorder.onerror = () => {
+        setIsRecording(false);
+        stream.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+        setNotice("The microphone recording failed. Try uploading an audio file.");
+      };
+      recorder.onstop = () => {
+        setIsRecording(false);
+        recorderRef.current = null;
+        if (recordingTimerRef.current) clearTimeout(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+        stream.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+
+        const type = recorder.mimeType || "audio/webm";
+        const extension = type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
+        const recording = new Blob(chunks, { type });
+        void recognizeAudio(recording, "echoid-recording." + extension);
+      };
+
+      recorder.start(250);
+      setIsRecording(true);
+      setNotice("Listening for up to 12 seconds. Tap the button again to stop early.");
+      recordingTimerRef.current = setTimeout(() => {
+        if (recorder.state === "recording") recorder.stop();
+      }, MAX_RECORDING_SECONDS * 1000);
+    } catch (error) {
+      const message =
+        error instanceof Error && error.name === "NotAllowedError"
+          ? "Microphone permission was denied. Allow microphone access or upload an audio file."
+          : "Could not start the microphone. Check your browser permissions and try again.";
+      setNotice(message);
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+  }
+
+  function toggleSaved(song: Song) {
+    setSaved((previous) =>
+      previous.some((item) => item.title === song.title && item.artist === song.artist)
+        ? previous.filter((item) => item.title !== song.title || item.artist !== song.artist)
+        : [song, ...previous],
+    );
+  }
+
+  function clearLocalData() {
+    setSaved([]);
+    setHistory([]);
+    setNotice("Saved songs and discovery history have been cleared from this browser.");
+  }
+
+  const nav = (target: Page, Icon: typeof Search) => (
+    <button
+      className={"nav-item " + (page === target ? "active" : "")}
+      onClick={() => {
+        setPage(target);
+        setNotice("");
+      }}
+    >
+      <Icon size={17} />
+      {target}
+    </button>
+  );
+
+  return (
+    <main className={"app-shell " + (dark ? "" : "light-theme")}>
+      <aside className="sidebar">
+        <button className="brand" onClick={() => setPage("Discover")}>
+          <span className="brand-mark"><AudioLines size={21} /></span>
+          <span>echo<span className="brand-light">id</span></span>
+        </button>
+        <div className="side-label">WORKSPACE</div>
+        <nav className="side-nav">
+          {nav("Discover", Search)}
+          {nav("Your library", Library)}
+          {nav("History", HistoryIcon)}
+        </nav>
+        <div className="side-bottom">
+          <div className="upgrade-card">
+            <div className="upgrade-icon"><Sparkles size={17} /></div>
+            <strong>Find your next favorite</strong>
+            <p>Explore music beyond the songs you already know.</p>
+            <button onClick={() => setPage("Discover")}>Explore discovery <ArrowUpRight size={14} /></button>
+          </div>
+          {nav("Settings", Settings2)}
+          {nav("Account", UserRound)}
+        </div>
+      </aside>
+
+      <section className="main-content">
+        <header className="topbar">
+          <div className="breadcrumb">Workspace <span>/</span> <strong>{page}</strong></div>
+          <span className={"status-pill " + (providerConfigured ? "status-ready" : "status-pending")}>
+            <i /> {providerConfigured ? "AudD connected" : "AudD token required"}
+          </span>
+        </header>
+
+        <div className="content-wrap">
+          {page === "Discover" && (
+            <>
+              <div className="hero-heading">
+                <div>
+                  <div className="eyebrow"><span /> MUSIC DISCOVERY, REIMAGINED</div>
+                  <h1>Every song has<br />a <span>story.</span></h1>
+                  <p>Identify the music playing around you. Record a short sample or upload an audio clip to discover the track.</p>
+                </div>
+                <div className="hero-art">
+                  <div className="orb orb-one" />
+                  <div className="orb orb-two" />
+                  <div className="orb-core"><AudioLines size={35} /></div>
+                  <div className="orbit orbit-one" />
+                  <div className="orbit orbit-two" />
+                </div>
+              </div>
+
+              <section className="search-card">
+                <div className="mode-tabs">
+                  {(["Sound", "Lyrics", "Hum", "Describe"] as SearchMode[]).map((item) => (
+                    <button
+                      key={item}
+                      className={"mode-tab " + (mode === item ? "selected" : "")}
+                      onClick={() => {
+                        setMode(item);
+                        setNotice(item === "Sound" ? "" : item + " search is not connected yet. Audio recognition is available in Sound mode.");
+                      }}
+                    >
+                      {item === "Sound" ? <AudioLines size={16} /> : item === "Lyrics" ? <Search size={16} /> : item === "Hum" ? <Mic size={16} /> : <Sparkles size={16} />}
+                      {item}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="search-body">
+                  {mode === "Sound" ? (
+                    <>
+                      <div className={"listen-button " + (isRecording ? "listening" : "")}>
+                        <button
+                          onClick={toggleRecording}
+                          disabled={isRecognizing}
+                          aria-label={isRecording ? "Stop recording and identify" : "Start recording to identify music"}
+                        >
+                          {isRecognizing ? <LoaderCircle size={27} className="spin" /> : isRecording ? <Check size={29} /> : <AudioLines size={29} />}
+                        </button>
+                        <span className="pulse pulse-a" />
+                        <span className="pulse pulse-b" />
+                      </div>
+                      <h2>{isRecognizing ? "Listening to your sample…" : isRecording ? "Capturing the sound…" : "What’s that song?"}</h2>
+                      <p>{isRecording ? "Tap the button to stop and identify, or wait for the 12-second capture." : "Tap to record up to 12 seconds of music from your surroundings."}</p>
+                      <div className="search-divider"><span>OR UPLOAD A CLIP</span></div>
+                      <label className={"upload-button " + (isRecognizing || isRecording ? "is-disabled" : "")}>
+                        <Upload size={16} /> Upload an audio file <span>MP3, WAV, M4A · max 10 MB</span>
+                        <input
+                          type="file"
+                          accept="audio/*"
+                          hidden
+                          disabled={isRecognizing || isRecording}
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            void handleFileSelection(file);
+                            event.currentTarget.value = "";
+                          }}
+                        />
+                      </label>
+                      {selectedFile && <p className="selected-file"><Check size={13} /> {selectedFile}</p>}
+                      <p className="privacy-note"><ShieldCheck size={13} /> Your sample is sent to AudD for identification. EchoID does not save the audio file.</p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-search-icon">
+                        {mode === "Lyrics" ? <Search size={21} /> : mode === "Hum" ? <Mic size={21} /> : <Sparkles size={21} />}
+                      </div>
+                      <h2>{mode === "Lyrics" ? "Search by lyrics." : mode === "Hum" ? "Hum the melody." : "Describe the song."}</h2>
+                      <p>This discovery method is not connected yet.</p>
+                      <div className="feature-placeholder">
+                        <Disc3 size={20} />
+                        <span>Available now: real audio identification in Sound mode.</span>
+                      </div>
+                      <button className="secondary-button" onClick={() => setMode("Sound")}>
+                        <AudioLines size={15} /> Switch to sound recognition
+                      </button>
+                    </>
+                  )}
+
+                  {notice && (
+                    <div className="inline-notice" role="status">
+                      <span>{notice}</span>
+                      <button onClick={() => setNotice("")} aria-label="Dismiss message"><X size={14} /></button>
+                    </div>
+                  )}
+                </div>
+                <div className="card-footer">
+                  <span><span className="privacy-dot" /> Audio sent only when you start recognition</span>
+                  <span>Powered by AudD</span>
+                </div>
+              </section>
+
+              {currentTrack && (
+                <section className="results-section">
+                  <div className="section-head">
+                    <div>
+                      <h3>Identified track</h3>
+                      <p>Recognized by AudD audio fingerprinting</p>
+                    </div>
+                    <button className="text-link" onClick={() => setCurrentTrack(null)}>Clear <X size={14} /></button>
+                  </div>
+                  <article className="recognized-track">
+                    <Cover song={currentTrack} large />
+                    <div className="recognized-meta">
+                      <span className="match-label"><Check size={13} /> IDENTIFIED</span>
+                      <h2>{currentTrack.title}</h2>
+                      <p>{currentTrack.artist}</p>
+                      <span className="album-line">{currentTrack.album}{currentTrack.releaseDate ? " · " + currentTrack.releaseDate.slice(0, 4) : ""}</span>
+                      <div className="track-actions">
+                        <button className="primary-button" onClick={() => toggleSaved(currentTrack)}>
+                          {saved.some((item) => item.title === currentTrack.title && item.artist === currentTrack.artist) ? <Heart size={15} fill="currentColor" /> : <Bookmark size={15} />}
+                          {saved.some((item) => item.title === currentTrack.title && item.artist === currentTrack.artist) ? "Saved" : "Save track"}
+                        </button>
+                        {currentTrack.songLink && (
+                          <a className="secondary-button" href={currentTrack.songLink} target="_blank" rel="noreferrer">
+                            Open track <ExternalLink size={14} />
+                          </a>
+                        )}
+                      </div>
+                      <div className="streaming-links">
+                        {currentTrack.spotifyUrl && <a href={currentTrack.spotifyUrl} target="_blank" rel="noreferrer">Spotify <ExternalLink size={12} /></a>}
+                        {currentTrack.appleMusicUrl && <a href={currentTrack.appleMusicUrl} target="_blank" rel="noreferrer">Apple Music <ExternalLink size={12} /></a>}
+                        {currentTrack.deezerUrl && <a href={currentTrack.deezerUrl} target="_blank" rel="noreferrer">Deezer <ExternalLink size={12} /></a>}
+                      </div>
+                    </div>
+                  </article>
+                </section>
+              )}
+
+              <section className="below-grid">
+                <div className="section-head">
+                  <div><h3>Your discovery space</h3><p>Saved songs and recent finds appear in your library.</p></div>
+                  <button className="text-link" onClick={() => setPage("History")}>View history <ArrowUpRight size={14} /></button>
+                </div>
+                <div className="empty-library">
+                  <div className="empty-icon"><Bookmark size={21} /></div>
+                  <div>
+                    <strong>{saved.length ? saved.length + " songs saved to your library." : "Your next favorite is out there."}</strong>
+                    <p>{history.length ? "You have identified " + history.length + " track(s) on this device." : "Identify a song to start building your personal music library."}</p>
+                  </div>
+                  <Check size={15} />
+                </div>
+              </section>
+            </>
+          )}
+
+          {page === "Your library" && (
+            <section className="page-panel">
+              <div className="page-title">
+                <div className="eyebrow"><span /> YOUR COLLECTION</div>
+                <h1>Your <span>library.</span></h1>
+                <p>The songs you save, all in one place on this device.</p>
+              </div>
+              <div className="library-toolbar">
+                <span><Bookmark size={16} /> {saved.length} saved songs</span>
+                <button className="secondary-button" onClick={() => setPage("Discover")}><Search size={15} /> Discover music</button>
+              </div>
+              {saved.length ? (
+                <div className="result-list">
+                  {saved.map((song) => (
+                    <article className="result-row" key={song.title + song.artist}>
+                      <Cover song={song} />
+                      <div className="song-meta"><strong>{song.title}</strong><span>{song.artist} · {song.album}</span></div>
+                      <button className="round-action" onClick={() => toggleSaved(song)} aria-label="Remove saved song"><Heart size={17} fill="currentColor" /></button>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">
+                  <div className="empty-icon"><Library size={24} /></div>
+                  <h2>Your library starts here.</h2>
+                  <p>Identify a song and save it to keep it in your collection.</p>
+                  <button className="primary-button" onClick={() => setPage("Discover")}>Find a song <ArrowUpRight size={16} /></button>
+                </div>
+              )}
+            </section>
+          )}
+
+          {page === "History" && (
+            <section className="page-panel">
+              <div className="page-title">
+                <div className="eyebrow"><span /> RECENT DISCOVERIES</div>
+                <h1>Your <span>history.</span></h1>
+                <p>Pick up where your music discovery left off.</p>
+              </div>
+              <div className="library-toolbar">
+                <span><Clock3 size={16} /> {history.length} recent discoveries</span>
+                <button className="text-link" onClick={() => setHistory([])}><Trash2 size={14} /> Clear history</button>
+              </div>
+              {history.length ? (
+                <div className="result-list">
+                  {history.map((song) => (
+                    <article className="result-row" key={song.title + song.artist}>
+                      <Cover song={song} />
+                      <div className="song-meta"><strong>{song.title}</strong><span>{song.artist} · {song.album}</span></div>
+                      <button className="round-action" onClick={() => toggleSaved(song)} aria-label="Save song">
+                        {saved.some((item) => item.title === song.title && item.artist === song.artist) ? <Heart size={17} fill="currentColor" /> : <Bookmark size={17} />}
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">
+                  <div className="empty-icon"><HistoryIcon size={24} /></div>
+                  <h2>No discoveries yet.</h2>
+                  <p>Identified songs will be collected here on this device.</p>
+                  <button className="primary-button" onClick={() => setPage("Discover")}>Start identifying <ArrowUpRight size={16} /></button>
+                </div>
+              )}
+            </section>
+          )}
+
+          {page === "Settings" && (
+            <section className="page-panel">
+              <div className="page-title">
+                <div className="eyebrow"><span /> PERSONALIZE ECHOID</div>
+                <h1>Make it <span>yours.</span></h1>
+                <p>Manage your experience and your local data.</p>
+              </div>
+              <div className="settings-list">
+                <div className="settings-row">
+                  <div className="settings-symbol"><SlidersHorizontal size={18} /></div>
+                  <div className="settings-copy"><strong>Appearance</strong><span>Choose how EchoID looks on this device.</span></div>
+                  <button className="toggle-control" onClick={() => setDark((value) => !value)}>{dark ? "Dark" : "Light"}</button>
+                </div>
+                <div className="settings-row">
+                  <div className="settings-symbol"><ShieldCheck size={18} /></div>
+                  <div className="settings-copy">
+                    <strong>Audio privacy</strong>
+                    <span>Audio is forwarded to AudD only when you start recognition. EchoID does not store the recording.</span>
+                  </div>
+                  <span className="settings-status">On demand</span>
+                </div>
+                <div className="settings-row">
+                  <div className="settings-symbol"><Globe size={18} /></div>
+                  <div className="settings-copy"><strong>Language</strong><span>Choose your preferred interface language.</span></div>
+                  <select value={language} onChange={(event) => setLanguage(event.target.value)}>
+                    <option>English</option><option>Italiano</option><option>Español</option>
+                  </select>
+                </div>
+                <div className="settings-row">
+                  <div className="settings-symbol"><Trash2 size={18} /></div>
+                  <div className="settings-copy"><strong>Clear local data</strong><span>Remove saved songs, recent searches, and profile details from this browser.</span></div>
+                  <button className="danger-button" onClick={() => { clearLocalData(); setName(""); setEmail(""); }}>Clear data</button>
+                </div>
+              </div>
+              {notice && <div className="inline-notice page-notice">{notice}</div>}
+            </section>
+          )}
+
+          {page === "Account" && (
+            <section className="page-panel">
+              <div className="page-title">
+                <div className="eyebrow"><span /> YOUR ECHOID PROFILE</div>
+                <h1>Your music, <span>your space.</span></h1>
+                <p>A local guest profile saved only in this browser.</p>
+              </div>
+              <div className="account-card">
+                <div className="account-avatar"><UserRound size={30} /></div>
+                <h2>Guest profile</h2>
+                <p>No account is created and no profile data is uploaded.</p>
+                <label>Display name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Your name" /></label>
+                <label>Email address<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" /></label>
+                <div className="inline-notice">This profile is local only. Cloud sync and sign-in are not enabled.</div>
+              </div>
+            </section>
+          )}
+
+          <footer className="page-footer">
+            <span>© 2026 EchoID</span>
+            <span>Music discovery, with a little more feeling.</span>
+            <span>Audio recognition · AudD</span>
+          </footer>
+        </div>
+      </section>
+    </main>
+  );
 }
