@@ -12,17 +12,24 @@ EchoID is a music-discovery frontend concept for identifying songs by sound, lyr
 - Appearance, privacy preference, language, and local-data controls
 - Clear demo labels where recognition services are not connected
 
-The current version uses illustrative demo results. It does **not** perform live audio recognition, create real accounts, or persist data to a server.
+The current interface uses illustrative demo results. It does **not** perform live audio recognition, create real accounts, or persist data to a server.
 
 ## Phase 2 — Recognition and backend
 
-Planned: audio fingerprinting, lyric and semantic search, humming recognition, conversational search, music analysis, authentication, database persistence, and provider integrations.
+The first API boundary is scaffolded at `POST /api/recognize`:
+
+- Accepts multipart audio uploads in the `audio` field
+- Validates that the upload is non-empty, uses an audio MIME type, and is at most 20 MB
+- Returns explicit JSON errors for invalid uploads
+- Returns `503 recognition_not_configured` after validation until a recognition provider is connected
+
+No audio is currently sent to a third party. The next integration requires selecting a music-recognition provider and configuring its credentials as server-side environment variables. Lyrics/semantic search, humming recognition, conversational search, music analysis, authentication, and database persistence remain planned.
 
 ## Stack
 
 - Next.js, React, TypeScript
 - CSS design system and Lucide icons
-- FastAPI planned for recognition APIs
+- Next.js Route Handler for the initial recognition API boundary
 - PostgreSQL / Supabase planned for persistence
 
 ## Run locally
