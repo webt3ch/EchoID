@@ -34,6 +34,13 @@ const json = (body: Record<string, unknown>, status = 200) =>
     headers: { "Cache-Control": "no-store" },
   });
 
+export async function GET() {
+  return json({
+    provider: "AudD",
+    configured: Boolean(process.env.AUDD_API_TOKEN),
+  });
+}
+
 export async function POST(request: Request) {
   const contentType = request.headers.get("content-type") ?? "";
   const contentLength = Number(request.headers.get("content-length") ?? 0);
