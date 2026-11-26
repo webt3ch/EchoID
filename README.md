@@ -1,68 +1,79 @@
 # EchoID
 
-EchoID is a responsive music-discovery web app. It can identify a song from a short recording made with the device microphone or from an uploaded audio clip.
+EchoID identifies music from a short microphone recording or an audio file. It uses the AudD standard recognition API and keeps a small song library in the current browser.
 
-## Live audio recognition
+## What works
 
-The **Sound** workflow is connected to the [AudD Music Recognition API](https://docs.audd.io/):
+- Record up to 12 seconds after choosing **Sound** and starting the microphone.
+- Upload an `audio/*` file up to 4 MB.
+- See the recognized track, available cover art, release details, and provider links.
+- Save tracks to the local library and review or clear the last 30 unique discoveries.
+- Use the app on desktop and mobile, including the five-section mobile navigation.
+- Set the local display name and choose dark or light appearance.
+- Lyrics, Hum, and Describe are labeled placeholders. They are not connected to search services and do not return sample results.
 
-- Record up to 12 seconds from the microphone, or upload an audio file.
-- Supported uploads must use an `audio/*` MIME type and be no larger than 10 MB.
-- The server forwards the clip to AudD using a private API token.
-- A successful match displays the track title, artist, album, release year, cover artwork, and available Spotify / Apple Music / Deezer links.
-- Identified tracks can be saved to the local library; the discovery history and preferences persist in the current browser.
+AudD's standard endpoint analyzes about the first 12 seconds of a request. Longer uploads are accepted up to EchoID's file-size limit, but the standard endpoint does not analyze the whole track.
 
-AudD's standard recognition endpoint analyses up to the first 12 seconds of audio. Longer uploads are accepted within the 10 MB file limit, but only the initial sample is used for standard recognition.
+## Audio and local data
 
-**Privacy:** when the user explicitly starts a recording or selects a file, EchoID sends that audio to AudD for identification. EchoID does not write the audio file to its own database or filesystem. Saved tracks, history, and guest profile fields are stored in browser `localStorage`; they are not synced to an account or another device. Review the provider's own privacy terms before using the service.
+EchoID requests microphone access only after the user starts recording. When a recording or file is submitted, EchoID sends it to the server route, which forwards it to AudD. EchoID does not save the audio file to its own database or filesystem. AudD processes the submitted sample under its current terms and privacy policy.
 
-The Lyrics, Hum, and Describe tabs are currently interface placeholders. They do not return fabricated matches and are not connected to search providers yet.
+Saved tracks, up to 30 recent discoveries, the optional display name, and appearance preference use browser `localStorage`. They are not connected to an account and are not synced to another device. The Settings page can clear saved songs, history, and the display name; clearing browser site data removes all local settings too.
 
-## Configure AudD
+See **Settings → How audio and local data are handled** in the app. Also review the current [AudD API documentation](https://docs.audd.io/), [privacy policy](https://audd.io/privacy/index.php), and [API terms](https://audd.io/legal/terms/). AudD's terms put responsibility on the customer to have the rights and permissions needed to submit audio.
 
-1. Create an account and obtain an API token from the [AudD dashboard](https://dashboard.audd.io/). New accounts may be offered a limited trial; availability and terms are determined by AudD.
-2. Copy `.env.example` to `.env.local`.
-3. Set the server-only environment variable:
+## Requirements
 
-   ```env
-   AUDD_API_TOKEN=your_real_token_here
-   ```
+- Node.js 22
+- npm
+- An AudD API token for live recognition
 
-4. Restart the development server.
+## Run locally
 
-Never expose the token in client-side code or name it `NEXT_PUBLIC_AUDD_API_TOKEN`.
+```bash
+npm ci
+cp .env.example .env.local
+```
 
-For Vercel, open the project's **Settings → Environment Variables**, add `AUDD_API_TOKEN` for the required environments, and redeploy.
+Add the token to `.env.local`:
+
+```env
+AUDD_API_TOKEN=your_real_token_here
+```
+
+Start the app:
+
+```bash
+npm run dev
+```
+
+Open http://localhost:3000. Microphone access requires HTTPS or `localhost`.
+
+Never put the token in client-side code or a `NEXT_PUBLIC_` variable. The `GET /api/recognize` status endpoint returns only whether the token is configured.
 
 ## API
 
 ### `GET /api/recognize`
 
-Returns the provider name and a boolean `configured` status. It never returns the token.
+Returns the provider name and whether the server has an AudD token. It never returns the token.
 
 ### `POST /api/recognize`
 
-Accepts `multipart/form-data` with one `audio` file field. Validates the file, forwards it to AudD, and returns either a normalized track object or a clear no-match / error response.
+Accepts `multipart/form-data` with one `audio` file field. It validates the MIME type and size, forwards the sample to AudD, and returns normalized track metadata or a clear no-match/error response. The route has a 20-second upstream timeout and does not write the audio to storage or log its contents.
 
-The API applies a 10 MB file limit and a 20-second upstream timeout. Provider credentials remain on the server. Uploaded audio is not persisted by this route.
+EchoID's 4 MB file cap leaves room for multipart form data under Vercel's default 4.5 MB function request-body limit. If a deployment changes the platform limit, change the client and server limits together and test the deployed route before increasing it.
 
-## Stack
+## Deploy
 
-- Next.js 15, React 19, TypeScript
-- Responsive CSS interface and Lucide icons
-- AudD standard music-recognition API
-- Browser MediaRecorder and localStorage for microphone capture and local library state
+For a Vercel deployment:
 
-## Run locally
+1. Add `AUDD_API_TOKEN` under **Project Settings → Environment Variables** for each environment that should recognize music.
+2. Redeploy after setting or rotating the variable.
+3. Confirm `/api/recognize` reports `configured: true` without returning the token.
+4. Test a real short clip, a no-match sample, an invalid file, and an oversized file over HTTPS.
+5. Review AudD's current plan, usage limits, privacy policy, and API terms before opening the service to external users.
 
-```bash
-npm install
-cp .env.example .env.local
-# Add your AUDD_API_TOKEN to .env.local
-npm run dev
-```
-
-Open http://localhost:3000.
+Without `AUDD_API_TOKEN`, the recognition controls are unavailable and the rest of the local library remains usable.
 
 ## Quality checks
 
@@ -71,4 +82,4 @@ npm run lint
 npm run build
 ```
 
-The GitHub Actions workflow runs the production build on pushes and pull requests targeting `main`.
+GitHub Actions runs both checks for pushes and pull requests targeting `main`.

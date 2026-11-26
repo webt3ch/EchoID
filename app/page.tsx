@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import {
   AudioLines,
   Search,
@@ -19,7 +20,6 @@ import {
   Music2,
   Trash2,
   ShieldCheck,
-  Globe,
   SlidersHorizontal,
   UserRound,
   ExternalLink,
@@ -43,16 +43,32 @@ type Song = {
   timecode?: string;
 };
 
-const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+// Leave room for multipart boundaries under Vercel's 4.5 MB default request cap.
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 const MAX_RECORDING_SECONDS = 12;
+
+function trackKey(song: Pick<Song, "title" | "artist">) {
+  return `${song.title.trim().toLocaleLowerCase()}::${song.artist.trim().toLocaleLowerCase()}`;
+}
+
+function safeExternalUrl(value?: string) {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 function Cover({ song, large = false }: { song: Song; large?: boolean }) {
   return (
     <div
       className={"cover " + song.color + (large ? " cover-large" : "")}
-      aria-label={song.title + " artwork"}
+      role="img"
+      aria-label={`${song.title} by ${song.artist} cover artwork`}
     >
-      {song.artworkUrl ? <img src={song.artworkUrl} alt="" /> : <Music2 size={24} />}
+      {song.artworkUrl ? <Image src={song.artworkUrl} alt="" width={600} height={600} unoptimized /> : <Music2 size={24} />}
     </div>
   );
 }
@@ -66,6 +82,31 @@ function readStored<T>(key: string, fallback: T): T {
   }
 }
 
+function readStoredSongs(key: string): Song[] {
+  const value = readStored<unknown>(key, []);
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((candidate): Song[] => {
+    if (!candidate || typeof candidate !== "object") return [];
+    const item = candidate as Partial<Song>;
+    if (typeof item.title !== "string" || typeof item.artist !== "string") return [];
+    const allowedColors = ["violet", "blue", "orange"];
+    return [{
+      title: item.title.trim().slice(0, 200),
+      artist: item.artist.trim().slice(0, 200),
+      album: typeof item.album === "string" ? item.album.slice(0, 200) : "Album not available",
+      color: allowedColors.includes(item.color ?? "") ? item.color! : "violet",
+      artworkUrl: safeExternalUrl(item.artworkUrl),
+      songLink: safeExternalUrl(item.songLink),
+      appleMusicUrl: safeExternalUrl(item.appleMusicUrl),
+      spotifyUrl: safeExternalUrl(item.spotifyUrl),
+      deezerUrl: safeExternalUrl(item.deezerUrl),
+      releaseDate: typeof item.releaseDate === "string" ? item.releaseDate.slice(0, 32) : undefined,
+      timecode: typeof item.timecode === "string" ? item.timecode.slice(0, 32) : undefined,
+    }];
+  }).filter((song) => song.title.length > 0 && song.artist.length > 0)
+    .slice(0, key === "echoid:history" ? 30 : 200);
+}
+
 export default function Home() {
   const [page, setPage] = useState<Page>("Discover");
   const [mode, setMode] = useState<SearchMode>("Sound");
@@ -74,9 +115,7 @@ export default function Home() {
   const [history, setHistory] = useState<Song[]>([]);
   const [currentTrack, setCurrentTrack] = useState<Song | null>(null);
   const [dark, setDark] = useState(true);
-  const [language, setLanguage] = useState("English");
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
   const [selectedFile, setSelectedFile] = useState("");
   const [isRecognizing, setIsRecognizing] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -88,12 +127,17 @@ export default function Home() {
   const recordingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    setSaved(readStored<Song[]>("echoid:saved", []));
-    setHistory(readStored<Song[]>("echoid:history", []));
-    setDark(readStored<boolean>("echoid:dark", true));
-    setLanguage(readStored<string>("echoid:language", "English"));
-    setName(readStored<string>("echoid:name", ""));
-    setEmail(readStored<string>("echoid:email", ""));
+    setSaved(readStoredSongs("echoid:saved"));
+    setHistory(readStoredSongs("echoid:history"));
+    setDark(readStored<unknown>("echoid:dark", true) === false ? false : true);
+    const storedName = readStored<unknown>("echoid:name", "");
+    setName(typeof storedName === "string" ? storedName.slice(0, 60) : "");
+    try {
+      window.localStorage.removeItem("echoid:email");
+      window.localStorage.removeItem("echoid:language");
+    } catch {
+      // Storage may be unavailable; the rest of the app remains usable.
+    }
     setStorageReady(true);
 
     fetch("/api/recognize", { cache: "no-store" })
@@ -108,13 +152,11 @@ export default function Home() {
       window.localStorage.setItem("echoid:saved", JSON.stringify(saved));
       window.localStorage.setItem("echoid:history", JSON.stringify(history));
       window.localStorage.setItem("echoid:dark", JSON.stringify(dark));
-      window.localStorage.setItem("echoid:language", JSON.stringify(language));
       window.localStorage.setItem("echoid:name", JSON.stringify(name));
-      window.localStorage.setItem("echoid:email", JSON.stringify(email));
     } catch {
       setNotice("This browser could not save local data. Check its storage settings.");
     }
-  }, [saved, history, dark, language, name, email, storageReady]);
+  }, [saved, history, dark, name, storageReady]);
 
   useEffect(() => {
     return () => {
@@ -130,13 +172,13 @@ export default function Home() {
       return;
     }
     if (audio.size > MAX_UPLOAD_BYTES) {
-      setNotice("The audio file is larger than 10 MB. Choose a shorter file.");
+      setNotice("The audio file is larger than 4 MB. Choose a shorter or smaller file.");
       return;
     }
 
     setIsRecognizing(true);
     setCurrentTrack(null);
-    setNotice("Sending audio securely to the recognition service…");
+    setNotice("Sending your sample to AudD for identification…");
 
     try {
       const body = new FormData();
@@ -146,7 +188,7 @@ export default function Home() {
         body,
         cache: "no-store",
       });
-      const data = (await response.json()) as {
+      let data: {
         matched?: boolean;
         message?: string;
         track?: {
@@ -162,6 +204,11 @@ export default function Home() {
           deezerUrl?: string;
         };
       };
+      try {
+        data = (await response.json()) as typeof data;
+      } catch {
+        throw new Error("The recognition service returned an invalid response. Try again.");
+      }
 
       if (!response.ok) {
         throw new Error(data.message || "Recognition failed. Please try again.");
@@ -176,18 +223,18 @@ export default function Home() {
         artist: data.track.artist,
         album: data.track.album || "Album not available",
         color: "violet",
-        artworkUrl: data.track.artworkUrl,
-        songLink: data.track.songLink,
-        appleMusicUrl: data.track.appleMusicUrl,
-        spotifyUrl: data.track.spotifyUrl,
-        deezerUrl: data.track.deezerUrl,
+        artworkUrl: safeExternalUrl(data.track.artworkUrl),
+        songLink: safeExternalUrl(data.track.songLink),
+        appleMusicUrl: safeExternalUrl(data.track.appleMusicUrl),
+        spotifyUrl: safeExternalUrl(data.track.spotifyUrl),
+        deezerUrl: safeExternalUrl(data.track.deezerUrl),
         releaseDate: data.track.releaseDate,
         timecode: data.track.timecode,
       };
 
       setCurrentTrack(track);
       setHistory((previous) =>
-        [track, ...previous.filter((item) => item.title !== track.title || item.artist !== track.artist)].slice(0, 30),
+        [track, ...previous.filter((item) => trackKey(item) !== trackKey(track))].slice(0, 30),
       );
       setNotice("Track identified successfully.");
     } catch (error) {
@@ -205,7 +252,7 @@ export default function Home() {
       return;
     }
     if (file.size > MAX_UPLOAD_BYTES) {
-      setNotice("The audio file is larger than 10 MB. Choose a shorter file.");
+      setNotice("The audio file is larger than 4 MB. Choose a shorter or smaller file.");
       return;
     }
     await recognizeAudio(file, file.name);
@@ -281,9 +328,14 @@ export default function Home() {
   }
 
   function toggleSaved(song: Song) {
+    const alreadySaved = saved.some((item) => trackKey(item) === trackKey(song));
+    if (!alreadySaved && saved.length >= 200) {
+      setNotice("Your local library is full. Remove a saved track before adding another.");
+      return;
+    }
     setSaved((previous) =>
-      previous.some((item) => item.title === song.title && item.artist === song.artist)
-        ? previous.filter((item) => item.title !== song.title || item.artist !== song.artist)
+      previous.some((item) => trackKey(item) === trackKey(song))
+        ? previous.filter((item) => trackKey(item) !== trackKey(song))
         : [song, ...previous],
     );
   }
@@ -291,52 +343,56 @@ export default function Home() {
   function clearLocalData() {
     setSaved([]);
     setHistory([]);
-    setNotice("Saved songs and discovery history have been cleared from this browser.");
+    setName("");
+    setNotice("Saved songs, discovery history, and profile name have been cleared from this browser.");
   }
 
-  const nav = (target: Page, Icon: typeof Search) => (
+  const nav = (target: Page, Icon: typeof Search, label: string = target) => (
     <button
       className={"nav-item " + (page === target ? "active" : "")}
+      aria-current={page === target ? "page" : undefined}
+      aria-label={label}
       onClick={() => {
         setPage(target);
         setNotice("");
       }}
     >
       <Icon size={17} />
-      {target}
+      <span className="nav-label">{label}</span>
     </button>
   );
 
   return (
     <main className={"app-shell " + (dark ? "" : "light-theme")}>
+      <a className="skip-link" href="#main-content">Skip to content</a>
       <aside className="sidebar">
         <button className="brand" onClick={() => setPage("Discover")}>
           <span className="brand-mark"><AudioLines size={21} /></span>
           <span>echo<span className="brand-light">id</span></span>
         </button>
-        <div className="side-label">WORKSPACE</div>
-        <nav className="side-nav">
+        <div className="side-label">YOUR MUSIC</div>
+        <nav className="side-nav" aria-label="Workspace">
           {nav("Discover", Search)}
           {nav("Your library", Library)}
           {nav("History", HistoryIcon)}
         </nav>
         <div className="side-bottom">
           <div className="upgrade-card">
-            <div className="upgrade-icon"><Sparkles size={17} /></div>
-            <strong>Find your next favorite</strong>
-            <p>Explore music beyond the songs you already know.</p>
-            <button onClick={() => setPage("Discover")}>Explore discovery <ArrowUpRight size={14} /></button>
+            <div className="upgrade-icon"><ShieldCheck size={17} /></div>
+            <strong>Listen when you choose</strong>
+            <p>EchoID records only after you start a recognition.</p>
+            <button className="privacy-settings-link" onClick={() => setPage("Settings")}>Audio &amp; privacy <ArrowUpRight size={14} /></button>
           </div>
           {nav("Settings", Settings2)}
           {nav("Account", UserRound)}
         </div>
       </aside>
 
-      <section className="main-content">
+      <section className="main-content" id="main-content">
         <header className="topbar">
           <div className="breadcrumb">Workspace <span>/</span> <strong>{page}</strong></div>
           <span className={"status-pill " + (providerConfigured ? "status-ready" : "status-pending")}>
-            <i /> {providerConfigured ? "AudD connected" : "AudD token required"}
+            <i /> {providerConfigured ? "AudD configured" : "AudD token required"}
           </span>
         </header>
 
@@ -345,25 +401,18 @@ export default function Home() {
             <>
               <div className="hero-heading">
                 <div>
-                  <div className="eyebrow"><span /> MUSIC DISCOVERY, REIMAGINED</div>
-                  <h1>Every song has<br />a <span>story.</span></h1>
-                  <p>Identify the music playing around you. Record a short sample or upload an audio clip to discover the track.</p>
-                </div>
-                <div className="hero-art">
-                  <div className="orb orb-one" />
-                  <div className="orb orb-two" />
-                  <div className="orb-core"><AudioLines size={35} /></div>
-                  <div className="orbit orbit-one" />
-                  <div className="orbit orbit-two" />
+                  <h1>Find the song<br />in the room.</h1>
+                  <p>Record a short sample or upload an audio clip to identify the music and open it in your streaming service.</p>
                 </div>
               </div>
 
               <section className="search-card">
-                <div className="mode-tabs">
+                <div className="mode-tabs" role="group" aria-label="Choose a recognition method">
                   {(["Sound", "Lyrics", "Hum", "Describe"] as SearchMode[]).map((item) => (
                     <button
                       key={item}
                       className={"mode-tab " + (mode === item ? "selected" : "")}
+                      aria-pressed={mode === item}
                       onClick={() => {
                         setMode(item);
                         setNotice(item === "Sound" ? "" : item + " search is not connected yet. Audio recognition is available in Sound mode.");
@@ -381,24 +430,27 @@ export default function Home() {
                       <div className={"listen-button " + (isRecording ? "listening" : "")}>
                         <button
                           onClick={toggleRecording}
-                          disabled={isRecognizing}
-                          aria-label={isRecording ? "Stop recording and identify" : "Start recording to identify music"}
+                          disabled={isRecognizing || (!isRecording && !providerConfigured)}
+                          aria-label={isRecording ? "Stop recording and identify" : isRecognizing ? "Identifying your track" : "Start recording to identify music"}
                         >
                           {isRecognizing ? <LoaderCircle size={27} className="spin" /> : isRecording ? <Check size={29} /> : <AudioLines size={29} />}
                         </button>
                         <span className="pulse pulse-a" />
                         <span className="pulse pulse-b" />
                       </div>
-                      <h2>{isRecognizing ? "Listening to your sample…" : isRecording ? "Capturing the sound…" : "What’s that song?"}</h2>
+                      <h2>{isRecognizing ? "Identifying the track…" : isRecording ? "Capturing the sound…" : "What’s that song?"}</h2>
                       <p>{isRecording ? "Tap the button to stop and identify, or wait for the 12-second capture." : "Tap to record up to 12 seconds of music from your surroundings."}</p>
+                      {!providerConfigured && !isRecording && !isRecognizing && (
+                        <p className="setup-hint">Recognition is unavailable until the server has an AUDD_API_TOKEN.</p>
+                      )}
                       <div className="search-divider"><span>OR UPLOAD A CLIP</span></div>
-                      <label className={"upload-button " + (isRecognizing || isRecording ? "is-disabled" : "")}>
-                        <Upload size={16} /> Upload an audio file <span>MP3, WAV, M4A · max 10 MB</span>
+                      <label className={"upload-button " + (isRecognizing || isRecording || !providerConfigured ? "is-disabled" : "")}>
+                        <Upload size={16} /> Upload an audio file <span>MP3, WAV, M4A · max 4 MB</span>
                         <input
                           type="file"
                           accept="audio/*"
-                          hidden
-                          disabled={isRecognizing || isRecording}
+                          className="file-input"
+                          disabled={isRecognizing || isRecording || !providerConfigured}
                           onChange={(event) => {
                             const file = event.target.files?.[0];
                             void handleFileSelection(file);
@@ -407,7 +459,7 @@ export default function Home() {
                         />
                       </label>
                       {selectedFile && <p className="selected-file"><Check size={13} /> {selectedFile}</p>}
-                      <p className="privacy-note"><ShieldCheck size={13} /> Your sample is sent to AudD for identification. EchoID does not save the audio file.</p>
+                      <p className="privacy-note"><ShieldCheck size={13} /> A recording or chosen file is sent to AudD. EchoID does not save the audio file.</p>
                     </>
                   ) : (
                     <>
@@ -427,14 +479,14 @@ export default function Home() {
                   )}
 
                   {notice && (
-                    <div className="inline-notice" role="status">
+                    <div className="inline-notice" role="status" aria-live="polite" aria-atomic="true">
                       <span>{notice}</span>
                       <button onClick={() => setNotice("")} aria-label="Dismiss message"><X size={14} /></button>
                     </div>
                   )}
                 </div>
                 <div className="card-footer">
-                  <span><span className="privacy-dot" /> Audio sent only when you start recognition</span>
+                  <span><span className="privacy-dot" /> Audio sent only when you record or choose a file</span>
                   <span>Powered by AudD</span>
                 </div>
               </section>
@@ -456,20 +508,20 @@ export default function Home() {
                       <p>{currentTrack.artist}</p>
                       <span className="album-line">{currentTrack.album}{currentTrack.releaseDate ? " · " + currentTrack.releaseDate.slice(0, 4) : ""}</span>
                       <div className="track-actions">
-                        <button className="primary-button" onClick={() => toggleSaved(currentTrack)}>
-                          {saved.some((item) => item.title === currentTrack.title && item.artist === currentTrack.artist) ? <Heart size={15} fill="currentColor" /> : <Bookmark size={15} />}
-                          {saved.some((item) => item.title === currentTrack.title && item.artist === currentTrack.artist) ? "Saved" : "Save track"}
+                        <button className="primary-button" aria-pressed={saved.some((item) => trackKey(item) === trackKey(currentTrack))} onClick={() => toggleSaved(currentTrack)}>
+                          {saved.some((item) => trackKey(item) === trackKey(currentTrack)) ? <Heart size={15} fill="currentColor" /> : <Bookmark size={15} />}
+                          {saved.some((item) => trackKey(item) === trackKey(currentTrack)) ? "Saved" : "Save track"}
                         </button>
                         {currentTrack.songLink && (
-                          <a className="secondary-button" href={currentTrack.songLink} target="_blank" rel="noreferrer">
+                          <a className="secondary-button" href={currentTrack.songLink} target="_blank" rel="noopener noreferrer">
                             Open track <ExternalLink size={14} />
                           </a>
                         )}
                       </div>
                       <div className="streaming-links">
-                        {currentTrack.spotifyUrl && <a href={currentTrack.spotifyUrl} target="_blank" rel="noreferrer">Spotify <ExternalLink size={12} /></a>}
-                        {currentTrack.appleMusicUrl && <a href={currentTrack.appleMusicUrl} target="_blank" rel="noreferrer">Apple Music <ExternalLink size={12} /></a>}
-                        {currentTrack.deezerUrl && <a href={currentTrack.deezerUrl} target="_blank" rel="noreferrer">Deezer <ExternalLink size={12} /></a>}
+                        {currentTrack.spotifyUrl && <a href={currentTrack.spotifyUrl} target="_blank" rel="noopener noreferrer">Spotify <ExternalLink size={12} /></a>}
+                        {currentTrack.appleMusicUrl && <a href={currentTrack.appleMusicUrl} target="_blank" rel="noopener noreferrer">Apple Music <ExternalLink size={12} /></a>}
+                        {currentTrack.deezerUrl && <a href={currentTrack.deezerUrl} target="_blank" rel="noopener noreferrer">Deezer <ExternalLink size={12} /></a>}
                       </div>
                     </div>
                   </article>
@@ -510,7 +562,7 @@ export default function Home() {
                     <article className="result-row" key={song.title + song.artist}>
                       <Cover song={song} />
                       <div className="song-meta"><strong>{song.title}</strong><span>{song.artist} · {song.album}</span></div>
-                      <button className="round-action" onClick={() => toggleSaved(song)} aria-label="Remove saved song"><Heart size={17} fill="currentColor" /></button>
+                      <button className="round-action" onClick={() => toggleSaved(song)} aria-label={`Remove ${song.title} from saved songs`}><Heart size={17} fill="currentColor" /></button>
                     </article>
                   ))}
                 </div>
@@ -534,7 +586,7 @@ export default function Home() {
               </div>
               <div className="library-toolbar">
                 <span><Clock3 size={16} /> {history.length} recent discoveries</span>
-                <button className="text-link" onClick={() => setHistory([])}><Trash2 size={14} /> Clear history</button>
+                <button className="text-link" onClick={() => { setHistory([]); setNotice("Discovery history has been cleared from this browser."); }}><Trash2 size={14} /> Clear history</button>
               </div>
               {history.length ? (
                 <div className="result-list">
@@ -542,8 +594,8 @@ export default function Home() {
                     <article className="result-row" key={song.title + song.artist}>
                       <Cover song={song} />
                       <div className="song-meta"><strong>{song.title}</strong><span>{song.artist} · {song.album}</span></div>
-                      <button className="round-action" onClick={() => toggleSaved(song)} aria-label="Save song">
-                        {saved.some((item) => item.title === song.title && item.artist === song.artist) ? <Heart size={17} fill="currentColor" /> : <Bookmark size={17} />}
+                      <button className="round-action" onClick={() => toggleSaved(song)} aria-label={saved.some((item) => trackKey(item) === trackKey(song)) ? `Remove ${song.title} from saved songs` : `Save ${song.title}`}>
+                        {saved.some((item) => trackKey(item) === trackKey(song)) ? <Heart size={17} fill="currentColor" /> : <Bookmark size={17} />}
                       </button>
                     </article>
                   ))}
@@ -570,30 +622,33 @@ export default function Home() {
                 <div className="settings-row">
                   <div className="settings-symbol"><SlidersHorizontal size={18} /></div>
                   <div className="settings-copy"><strong>Appearance</strong><span>Choose how EchoID looks on this device.</span></div>
-                  <button className="toggle-control" onClick={() => setDark((value) => !value)}>{dark ? "Dark" : "Light"}</button>
+                  <button className="toggle-control" aria-pressed={dark} onClick={() => setDark((value) => !value)}>{dark ? "Dark" : "Light"}</button>
                 </div>
                 <div className="settings-row">
                   <div className="settings-symbol"><ShieldCheck size={18} /></div>
                   <div className="settings-copy">
                     <strong>Audio privacy</strong>
-                    <span>Audio is forwarded to AudD only when you start recognition. EchoID does not store the recording.</span>
+                    <span>Audio is sent to AudD only after you start recording or choose a file. EchoID does not store the recording.</span>
                   </div>
                   <span className="settings-status">On demand</span>
                 </div>
                 <div className="settings-row">
-                  <div className="settings-symbol"><Globe size={18} /></div>
-                  <div className="settings-copy"><strong>Language</strong><span>Choose your preferred interface language.</span></div>
-                  <select value={language} onChange={(event) => setLanguage(event.target.value)}>
-                    <option>English</option><option>Italiano</option><option>Español</option>
-                  </select>
-                </div>
-                <div className="settings-row">
                   <div className="settings-symbol"><Trash2 size={18} /></div>
-                  <div className="settings-copy"><strong>Clear local data</strong><span>Remove saved songs, recent searches, and profile details from this browser.</span></div>
-                  <button className="danger-button" onClick={() => { clearLocalData(); setName(""); setEmail(""); }}>Clear data</button>
+                  <div className="settings-copy"><strong>Clear local data</strong><span>Remove saved songs, discovery history, and your optional display name from this browser.</span></div>
+                  <button className="danger-button" onClick={clearLocalData}>Clear data</button>
                 </div>
               </div>
-              {notice && <div className="inline-notice page-notice">{notice}</div>}
+              <section className="settings-privacy" aria-labelledby="data-handling-title">
+                <h2 id="data-handling-title">How audio and local data are handled</h2>
+                <p>EchoID sends a recording or selected audio file to its server, which forwards it to AudD for recognition. EchoID does not save the audio. AudD processes the sample under its own policies and terms; its standard endpoint analyzes about 12 seconds per request.</p>
+                <p>Saved tracks, the last 30 unique discoveries, your optional display name, and appearance preference stay in this browser. They are not synced to an account. Use <strong>Clear data</strong> above to remove saved tracks, history, and your display name.</p>
+                <div className="settings-privacy-links">
+                  <a href="https://docs.audd.io/" target="_blank" rel="noopener noreferrer">AudD documentation <ExternalLink size={13} /></a>
+                  <a href="https://audd.io/privacy/index.php" target="_blank" rel="noopener noreferrer">AudD privacy policy <ExternalLink size={13} /></a>
+                  <a href="https://audd.io/legal/terms/" target="_blank" rel="noopener noreferrer">AudD API terms <ExternalLink size={13} /></a>
+                </div>
+              </section>
+              {notice && <div className="inline-notice page-notice" role="status" aria-live="polite">{notice}</div>}
             </section>
           )}
 
@@ -606,10 +661,9 @@ export default function Home() {
               </div>
               <div className="account-card">
                 <div className="account-avatar"><UserRound size={30} /></div>
-                <h2>Guest profile</h2>
-                <p>No account is created and no profile data is uploaded.</p>
-                <label>Display name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Your name" /></label>
-                <label>Email address<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" /></label>
+                <h2>{name.trim() || "Guest profile"}</h2>
+                <p>No account is created. Your display name stays in this browser.</p>
+                <label>Display name<input value={name} maxLength={60} onChange={(event) => setName(event.target.value)} placeholder="Your name" /></label>
                 <div className="inline-notice">This profile is local only. Cloud sync and sign-in are not enabled.</div>
               </div>
             </section>
@@ -619,9 +673,17 @@ export default function Home() {
             <span>© 2026 EchoID</span>
             <span>Music discovery, with a little more feeling.</span>
             <span>Audio recognition · AudD</span>
+            <button className="privacy-footer-link" onClick={() => setPage("Settings")}>Audio &amp; privacy</button>
           </footer>
         </div>
       </section>
+      <nav className="mobile-nav" aria-label="Main navigation">
+        {nav("Discover", Search)}
+        {nav("Your library", Library, "Library")}
+        {nav("History", HistoryIcon)}
+        {nav("Settings", Settings2)}
+        {nav("Account", UserRound)}
+      </nav>
     </main>
   );
 }
