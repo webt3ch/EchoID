@@ -22,7 +22,7 @@ export default function PlaylistsPage() {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
-  const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\\/$/, "");
+  const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "");
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
   const active = playlists.find((item) => item.id === activeId) || null;
 

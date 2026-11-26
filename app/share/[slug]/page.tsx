@@ -7,7 +7,7 @@ type PublicPlaylist = { name: string; description?: string; tracks?: Track[] };
 export const dynamic = "force-dynamic";
 
 async function getPlaylist(slug: string): Promise<PublicPlaylist | null> {
-  const base = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\\/$/, "");
+  const base = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "");
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
   if (!base || !key) return null;
   const url = base + "/rest/v1/echoid_public_playlists?select=name,description,tracks&slug=eq." + encodeURIComponent(slug) + "&is_public=eq.true&limit=1";

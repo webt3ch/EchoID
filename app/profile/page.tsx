@@ -15,7 +15,7 @@ export default function ProfilePage() {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [savedHandle, setSavedHandle] = useState("");
-  const url = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\\/$/, "");
+  const url = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "");
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
   useEffect(() => {
