@@ -49,3 +49,45 @@ button{color:inherit}.brand{border:0;background:none;cursor:pointer}.upgrade-car
   .streaming-links{gap:9px;margin-top:12px}
   .settings-status{display:none}
 }
+
+
+/* EchoID V2 product surfaces */
+.playlist-layout{display:grid;grid-template-columns:minmax(240px,.82fr) minmax(0,1.3fr);gap:18px}
+.playlist-create,.analytics-card,.stat-card,.feature-note{border:1px solid #292f3d;background:#10131a;border-radius:14px;padding:17px;margin-bottom:18px}
+.playlist-create{display:grid;gap:10px;margin-bottom:24px}
+.playlist-create h3,.analytics-card h3{font:700 14px Manrope,sans-serif;margin:0 0 4px}
+.playlist-create input,.playlist-create textarea,.account-card textarea{width:100%;border:1px solid #303544;background:#0b0e14;border-radius:9px;padding:11px;color:#f5f6fb;outline:none;font:inherit;font-size:12px}
+.playlist-create input:focus,.account-card textarea:focus{border-color:#657cff}
+.playlist-list{display:grid;gap:8px}
+.playlist-item{width:100%;display:flex;align-items:center;gap:11px;text-align:left;padding:12px;border:1px solid #252a36;border-radius:11px;background:#10131a;color:#e9ebf3;cursor:pointer}
+.playlist-item.selected{border-color:#657cff;background:#202947}
+.playlist-item>span:nth-child(2){display:grid;gap:5px;min-width:0}
+.playlist-item strong{font-size:12px}.playlist-item small{font-size:10px;color:#8b92a2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.playlist-icon{width:36px;height:36px;border-radius:10px;background:#202947;color:#9eafff;display:grid;place-items:center;flex-shrink:0}
+.subheading{font:700 13px Manrope,sans-serif;margin:22px 0 12px}
+.muted-copy{font-size:11px;color:#858c9b}
+.empty-state.compact{padding:20px;min-height:0;margin:12px 0}
+.dna-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;width:100%;margin-top:16px}
+.dna-grid>div{border:1px solid #2a3040;background:#111722;border-radius:9px;padding:10px;display:grid;gap:6px}
+.dna-grid span{font-size:8px;letter-spacing:1.2px;color:#77839b}.dna-grid strong{font-size:11px;color:#dce2f2}
+.stats-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:15px 0 18px}
+.stat-card{display:grid;gap:8px;margin:0}.stat-card svg{color:#9cadff}.stat-card span{font-size:10px;color:#8b92a2}.stat-card strong{font:800 28px Manrope,sans-serif}.stat-card small{font-size:9px;color:#687184}
+.analytics-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}.analytics-card{margin:0}.analytics-card>p{font-size:10px;color:#848b9b;margin:5px 0 20px}.analytics-card.wide{grid-column:1/-1}
+.bar-row{display:grid;grid-template-columns:minmax(80px, .8fr) minmax(40px,1.4fr) 22px;gap:10px;align-items:center;margin:13px 0}.bar-row span{font-size:10px;color:#c8ccda;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bar-row>div{height:7px;background:#222938;border-radius:10px;overflow:hidden}.bar-row i{display:block;height:100%;background:linear-gradient(90deg,#526fff,#ad9aff);border-radius:10px}.bar-row b{font-size:10px;color:#9ca8d0;text-align:right}
+.month-bars{height:180px;display:flex;align-items:flex-end;justify-content:space-around;gap:14px;padding:12px 8px 0}.month-bars>div{display:flex;flex:1;align-items:center;justify-content:flex-end;flex-direction:column;gap:8px;height:100%}.month-bars span{font-size:10px;color:#b9c7ff}.month-bars i{width:min(42px,65%);min-height:8px;background:linear-gradient(180deg,#9d8cff,#476bff);border-radius:7px 7px 2px 2px}.month-bars small{font-size:9px;color:#81899b}
+.note-contour{display:flex;flex-wrap:wrap;gap:8px;padding:18px;border:1px solid #292f3d;background:#10131a;border-radius:13px}
+.note-contour span{min-width:42px;text-align:center;border:1px solid #38456c;background:#1a2440;color:#b5c5ff;border-radius:9px;padding:9px 7px;font:700 12px Manrope,sans-serif}
+.feature-note{display:flex;gap:13px;color:#9fb2ff;margin-top:24px}.feature-note svg{flex-shrink:0}.feature-note strong{font-size:12px}.feature-note p{color:#8a92a4;font-size:11px;line-height:1.7;margin:7px 0 0}
+.public-page{min-height:100vh;background:radial-gradient(ellipse at 50% 0%,#1b2750 0%,#0b0d13 48%);color:#edf0f8;padding:26px}
+.public-header{max-width:900px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:12px 0 35px;border-bottom:1px solid #252b3c}.public-header>span{font-size:9px;letter-spacing:1.5px;color:#8d97b1}
+.public-content{max-width:760px;margin:65px auto 30px}.public-content h1{font:800 clamp(38px,6vw,64px)/1.08 Manrope,sans-serif;letter-spacing:-2px;margin:15px 0}.public-content>p{font-size:13px;color:#a0a7b8;line-height:1.7;margin-bottom:26px}.public-content>.primary-button{margin-top:25px;text-decoration:none}
+.public-avatar{width:66px;height:66px;border:1px solid #475b9b;background:#1d2b52;color:#b9c8ff;border-radius:21px;display:grid;place-items:center;margin-bottom:20px}
+.handle-line{color:#9caeff!important;margin-top:-7px!important}
+.check-line{display:flex!important;grid-template-columns:18px 1fr!important;align-items:center;gap:9px!important}.check-line input{width:15px;height:15px}
+.light-theme .playlist-create,.light-theme .playlist-item,.light-theme .analytics-card,.light-theme .stat-card,.light-theme .feature-note,.light-theme .note-contour{background:#fff;border-color:#dfe3ed;color:#202536}
+.light-theme .playlist-create input,.light-theme .account-card textarea{background:#f8f9fc;color:#202536;border-color:#d7dce8}
+.light-theme .playlist-item{color:#202536}.light-theme .playlist-item.selected{background:#e9edff}
+.light-theme .dna-grid>div{background:#f5f7fb;border-color:#dfe3ed}.light-theme .dna-grid strong{color:#30384b}
+.light-theme .bar-row span,.light-theme .analytics-card>p,.light-theme .feature-note p{color:#6c7384}
+@media(max-width:900px){.stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.playlist-layout{grid-template-columns:1fr}}
+@media(max-width:680px){.analytics-grid{grid-template-columns:1fr}.analytics-card.wide{grid-column:auto}.stats-grid{gap:9px}.stat-card{padding:13px}.stat-card strong{font-size:23px}.public-page{padding:18px}.public-content{margin-top:45px}.public-header{padding-bottom:22px}.dna-grid{gap:7px}.dna-grid>div{padding:8px}.bar-row{grid-template-columns:minmax(70px,.9fr) minmax(40px,1.2fr) 18px;gap:7px}}
