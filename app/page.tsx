@@ -23,12 +23,12 @@ import {
   SlidersHorizontal,
   UserRound,
   ExternalLink,
-  Disc3,
   LoaderCircle,
 } from "lucide-react";
 
 type Page = "Discover" | "Your library" | "History" | "Settings" | "Account";
 type SearchMode = "Sound" | "Lyrics" | "Hum" | "Describe";
+type CloudSession = { access_token: string; user: { id: string; email?: string } };
 type Song = {
   title: string;
   artist: string;
@@ -82,6 +82,15 @@ export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
   const [providerConfigured, setProviderConfigured] = useState(false);
   const [storageReady, setStorageReady] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Song[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [cloudSession, setCloudSession] = useState<CloudSession | null>(null);
+  const [password, setPassword] = useState("");
+  const [cloudBusy, setCloudBusy] = useState(false);
+  const cloudUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(/\/$/, "");
+  const cloudAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+  const cloudConfigured = Boolean(cloudUrl && cloudAnonKey);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -94,6 +103,7 @@ export default function Home() {
     setLanguage(readStored<string>("echoid:language", "English"));
     setName(readStored<string>("echoid:name", ""));
     setEmail(readStored<string>("echoid:email", ""));
+    setCloudSession(readStored<CloudSession | null>("echoid:cloud-session", null));
     setStorageReady(true);
 
     fetch("/api/recognize", { cache: "no-store" })
@@ -280,6 +290,98 @@ export default function Home() {
     }
   }
 
+
+  async function cloudAuth(action: "signup" | "signin") {
+    if (!cloudConfigured) { setNotice("Configure Supabase URL and anon key first."); return; }
+    if (!email.trim() || !password) { setNotice("Enter your email and password."); return; }
+    setCloudBusy(true);
+    try {
+      const endpoint = action === "signup" ? "/auth/v1/signup" : "/auth/v1/token?grant_type=password";
+      const response = await fetch(cloudUrl + endpoint, { method: "POST", headers: { "Content-Type": "application/json", apikey: cloudAnonKey }, body: JSON.stringify({ email: email.trim(), password }), cache: "no-store" });
+      const data = await response.json() as CloudSession & { msg?: string; error_description?: string; error?: string };
+      if (!response.ok) throw new Error(data.msg || data.error_description || data.error || "Cloud authentication failed.");
+      if (!data.access_token || !data.user?.id) { setNotice("Account created. Verify your email if required, then sign in."); return; }
+      setCloudSession(data);
+      window.localStorage.setItem("echoid:cloud-session", JSON.stringify(data));
+      await loadCloudLibrary(data);
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Cloud sign-in failed."); }
+    finally { setCloudBusy(false); }
+  }
+
+  async function loadCloudLibrary(session = cloudSession) {
+    if (!session || !cloudConfigured) return;
+    setCloudBusy(true);
+    try {
+      const response = await fetch(cloudUrl + "/rest/v1/echoid_library?select=saved,history&user_id=eq." + encodeURIComponent(session.user.id) + "&limit=1", { headers: { apikey: cloudAnonKey, Authorization: "Bearer " + session.access_token }, cache: "no-store" });
+      if (!response.ok) throw new Error("Cloud load failed. Check the Supabase table and RLS policies.");
+      const rows = await response.json() as Array<{ saved?: Song[]; history?: Song[] }>;
+      if (rows[0]) { setSaved(Array.isArray(rows[0].saved) ? rows[0].saved : []); setHistory(Array.isArray(rows[0].history) ? rows[0].history : []); setNotice("Cloud library loaded."); }
+      else setNotice("Account connected. Sync your current library to create its cloud copy.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Cloud load failed."); }
+    finally { setCloudBusy(false); }
+  }
+
+  async function syncCloudLibrary() {
+    if (!cloudSession || !cloudConfigured) return;
+    setCloudBusy(true);
+    try {
+      const response = await fetch(cloudUrl + "/rest/v1/echoid_library?on_conflict=user_id", {
+        method: "POST",
+        headers: { apikey: cloudAnonKey, Authorization: "Bearer " + cloudSession.access_token, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify({ user_id: cloudSession.user.id, saved, history, updated_at: new Date().toISOString() }), cache: "no-store",
+      });
+      if (!response.ok) throw new Error("Cloud sync failed. Confirm the Supabase SQL schema and RLS policies.");
+      setNotice("Library and history synced to your Supabase account.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Cloud sync failed."); }
+    finally { setCloudBusy(false); }
+  }
+
+  function cloudSignOut() {
+    setCloudSession(null); setPassword("");
+    window.localStorage.removeItem("echoid:cloud-session");
+    setNotice("Signed out. Local data remains on this device.");
+  }
+
+  async function runTextSearch(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const query = searchQuery.trim();
+    if (query.length < 3) {
+      setNotice("Enter at least 3 characters to search.");
+      return;
+    }
+    setSearchLoading(true);
+    setSearchResults([]);
+    setNotice("");
+    try {
+      const response = await fetch("/api/search?mode=" + mode.toLowerCase() + "&q=" + encodeURIComponent(query), { cache: "no-store" });
+      const data = (await response.json()) as { message?: string; tracks?: Array<{ title: string; artist: string; album?: string; artworkUrl?: string; songLink?: string; releaseDate?: string }> };
+      if (!response.ok) throw new Error(data.message || "Search failed.");
+      const results = (data.tracks ?? []).map((track) => ({
+        title: track.title,
+        artist: track.artist,
+        album: track.album || "Album not available",
+        color: "violet",
+        artworkUrl: track.artworkUrl,
+        songLink: track.songLink,
+        releaseDate: track.releaseDate,
+      }));
+      setSearchResults(results);
+      setNotice(results.length ? "Found " + results.length + " result(s)." : "No matching tracks found. Try a shorter phrase or a few distinctive words.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Search failed. Please try again.");
+    } finally {
+      setSearchLoading(false);
+    }
+  }
+
+  function selectSearchResult(song: Song) {
+    setCurrentTrack(song);
+    setHistory((previous) =>
+      [song, ...previous.filter((item) => item.title !== song.title || item.artist !== song.artist)].slice(0, 30),
+    );
+    setNotice("Track added to your discovery history.");
+  }
+
   function toggleSaved(song: Song) {
     setSaved((previous) =>
       previous.some((item) => item.title === song.title && item.artist === song.artist)
@@ -366,7 +468,8 @@ export default function Home() {
                       className={"mode-tab " + (mode === item ? "selected" : "")}
                       onClick={() => {
                         setMode(item);
-                        setNotice(item === "Sound" ? "" : item + " search is not connected yet. Audio recognition is available in Sound mode.");
+                        setNotice("");
+                        setSearchResults([]);
                       }}
                     >
                       {item === "Sound" ? <AudioLines size={16} /> : item === "Lyrics" ? <Search size={16} /> : item === "Hum" ? <Mic size={16} /> : <Sparkles size={16} />}
@@ -409,20 +512,39 @@ export default function Home() {
                       {selectedFile && <p className="selected-file"><Check size={13} /> {selectedFile}</p>}
                       <p className="privacy-note"><ShieldCheck size={13} /> Your sample is sent to AudD for identification. EchoID does not save the audio file.</p>
                     </>
+                  ) : mode === "Hum" ? (
+                    <>
+                      <div className={"listen-button " + (isRecording ? "listening" : "")}>
+                        <button onClick={toggleRecording} disabled={isRecognizing} aria-label={isRecording ? "Stop humming capture" : "Record a hummed melody"}>
+                          {isRecognizing ? <LoaderCircle size={27} className="spin" /> : isRecording ? <Check size={29} /> : <Mic size={29} />}
+                        </button>
+                        <span className="pulse pulse-a" /><span className="pulse pulse-b" />
+                      </div>
+                      <h2>{isRecording ? "Recording your melody…" : "Hum a melody."}</h2>
+                      <p>Record up to 12 seconds of humming. AudD is optimized for recorded music, so humming matches are experimental and not guaranteed.</p>
+                      <p className="privacy-note"><ShieldCheck size={13} /> Your recording is sent to AudD only after you start capture.</p>
+                    </>
                   ) : (
                     <>
-                      <div className="text-search-icon">
-                        {mode === "Lyrics" ? <Search size={21} /> : mode === "Hum" ? <Mic size={21} /> : <Sparkles size={21} />}
-                      </div>
-                      <h2>{mode === "Lyrics" ? "Search by lyrics." : mode === "Hum" ? "Hum the melody." : "Describe the song."}</h2>
-                      <p>This discovery method is not connected yet.</p>
-                      <div className="feature-placeholder">
-                        <Disc3 size={20} />
-                        <span>Available now: real audio identification in Sound mode.</span>
-                      </div>
-                      <button className="secondary-button" onClick={() => setMode("Sound")}>
-                        <AudioLines size={15} /> Switch to sound recognition
-                      </button>
+                      <div className="text-search-icon">{mode === "Lyrics" ? <Search size={21} /> : <Sparkles size={21} />}</div>
+                      <h2>{mode === "Lyrics" ? "Search by lyrics." : "Describe the song."}</h2>
+                      <p>{mode === "Lyrics" ? "Enter a line or phrase you remember." : "Describe the sound, mood, genre, instruments, or any words you recall."}</p>
+                      <form className="query-box" onSubmit={runTextSearch}>
+                        <textarea value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder={mode === "Lyrics" ? "Type a lyric fragment…" : "e.g. upbeat 2000s pop with a piano intro…"} rows={2} maxLength={300} aria-label={mode === "Lyrics" ? "Lyrics search" : "Song description"} />
+                        <button type="submit" disabled={searchLoading} aria-label="Search music">{searchLoading ? <LoaderCircle size={17} className="spin" /> : <Search size={17} />}</button>
+                      </form>
+                      {searchResults.length > 0 && (
+                        <div className="result-list" style={{ width: "min(560px, 100%)", marginTop: 18, textAlign: "left" }}>
+                          {searchResults.map((song, index) => (
+                            <article className="result-row" key={song.title + song.artist + index}>
+                              <Cover song={song} />
+                              <div className="song-meta"><strong>{song.title}</strong><span>{song.artist}{song.album ? " · " + song.album : ""}</span></div>
+                              <button className="round-action" onClick={() => selectSearchResult(song)} aria-label={"Open " + song.title}><ArrowUpRight size={16} /></button>
+                            </article>
+                          ))}
+                        </div>
+                      )}
+                      <p className="privacy-note"><ShieldCheck size={13} /> Lyrics search uses LRCLIB. Description search uses the Apple Music catalog. Results depend on provider coverage.</p>
                     </>
                   )}
 
@@ -606,11 +728,23 @@ export default function Home() {
               </div>
               <div className="account-card">
                 <div className="account-avatar"><UserRound size={30} /></div>
-                <h2>Guest profile</h2>
-                <p>No account is created and no profile data is uploaded.</p>
-                <label>Display name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Your name" /></label>
-                <label>Email address<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" /></label>
-                <div className="inline-notice">This profile is local only. Cloud sync and sign-in are not enabled.</div>
+                <h2>{cloudSession ? "Cloud account connected" : "Your EchoID account"}</h2>
+                <p>{cloudSession ? "Signed in as " + (cloudSession.user.email || email) : "Sign in or create an account to sync your music library."}</p>
+                {!cloudSession && <>
+                  <label>Display name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Your name (optional)" /></label>
+                  <label>Email address<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" autoComplete="email" /></label>
+                  <label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Password" autoComplete="current-password" /></label>
+                  <div className="track-actions">
+                    <button className="primary-button" disabled={cloudBusy} onClick={() => void cloudAuth("signin")}>{cloudBusy ? "Please wait…" : "Sign in"}</button>
+                    <button className="secondary-button" disabled={cloudBusy} onClick={() => void cloudAuth("signup")}>Create account</button>
+                  </div>
+                </>}
+                {cloudSession && <div className="track-actions">
+                  <button className="primary-button" disabled={cloudBusy} onClick={() => void syncCloudLibrary()}>{cloudBusy ? "Syncing…" : "Sync library now"}</button>
+                  <button className="secondary-button" disabled={cloudBusy} onClick={() => void loadCloudLibrary()}>Load cloud library</button>
+                  <button className="danger-button" onClick={cloudSignOut}>Sign out</button>
+                </div>}
+                <div className="inline-notice">{cloudConfigured ? "Supabase is configured. Apply the SQL setup in README and enable email authentication." : "Cloud sync needs NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in the environment. Never use a service-role key in the browser."}</div>
               </div>
             </section>
           )}
