@@ -16,7 +16,20 @@ AudD's standard recognition endpoint analyses up to the first 12 seconds of audi
 
 **Privacy:** when the user explicitly starts a recording or selects a file, EchoID sends that audio to AudD for identification. EchoID does not write the audio file to its own database or filesystem. Saved tracks, history, and guest profile fields are stored in browser `localStorage`; they are not synced to an account or another device. Review the provider's own privacy terms before using the service.
 
-The Lyrics, Hum, and Describe tabs are currently interface placeholders. They do not return fabricated matches and are not connected to search providers yet.
+Lyrics and Describe search are connected to external catalogs: Lyrics uses LRCLIB search, while Describe uses Apple Music catalog text search. Describe is keyword/catalog search, not semantic AI matching. Hum records a short sample and sends it through the existing AudD recognition route; AudD is designed for recorded music, so humming recognition is experimental and not guaranteed.
+
+## Cloud accounts and library sync (optional)
+
+EchoID supports Supabase email/password accounts and explicit cloud library sync. Configure these public project settings in .env.local and in the deployment environment:
+
+    NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+    NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+
+Then run the SQL in supabase/schema.sql in the Supabase SQL Editor. The table uses row-level security so authenticated users can access only the row whose user_id matches their account. Enable Email authentication in Supabase Auth. Email confirmation may require verification before sign-in.
+
+In EchoID's Account page, create an account or sign in, then use Sync library now to upload saved tracks and history. Load cloud library replaces the current local saved tracks and history with the cloud copy. Sync is user-triggered, not automatic or real-time. Signing out leaves the browser's local library intact.
+
+The Supabase anon key is designed to be public; never place a service-role key in browser variables or client code. The current client stores the auth session in browser localStorage, so protect the app against XSS and use a strong unique password. Cloud sync requires your own Supabase project and has not been end-to-end tested without its project credentials.
 
 ## Configure AudD
 
