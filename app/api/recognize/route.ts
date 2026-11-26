@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
+export const maxDuration = 30;
 
 const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
 const AUDD_ENDPOINT = "https://api.audd.io/";
@@ -33,6 +34,18 @@ const json = (body: Record<string, unknown>, status = 200) =>
     status,
     headers: { "Cache-Control": "no-store" },
   });
+
+// Provider metadata is external input. Only expose secure web URLs as clickable links.
+function safeHttpsUrl(value: unknown): string | undefined {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export async function GET() {
   return json({
@@ -186,7 +199,7 @@ export async function POST(request: Request) {
       ? result.apple_music.artwork.url
       : "";
   const artworkUrl = artworkTemplate
-    ? artworkTemplate.replace("{w}x{h}bb", "600x600bb")
+    ? safeHttpsUrl(artworkTemplate.replace("{w}x{h}bb", "600x600bb"))
     : undefined;
 
   return json({
@@ -198,15 +211,11 @@ export async function POST(request: Request) {
       album: typeof result.album === "string" ? result.album : "",
       releaseDate: typeof result.release_date === "string" ? result.release_date : "",
       timecode: typeof result.timecode === "string" ? result.timecode : "",
-      songLink: typeof result.song_link === "string" ? result.song_link : "",
+      songLink: safeHttpsUrl(result.song_link) ?? "",
       artworkUrl,
-      appleMusicUrl:
-        typeof result.apple_music?.url === "string" ? result.apple_music.url : "",
-      spotifyUrl:
-        typeof result.spotify?.external_urls?.spotify === "string"
-          ? result.spotify.external_urls.spotify
-          : "",
-      deezerUrl: typeof result.deezer?.link === "string" ? result.deezer.link : "",
+      appleMusicUrl: safeHttpsUrl(result.apple_music?.url) ?? "",
+      spotifyUrl: safeHttpsUrl(result.spotify?.external_urls?.spotify) ?? "",
+      deezerUrl: safeHttpsUrl(result.deezer?.link) ?? "",
     },
   });
 }
