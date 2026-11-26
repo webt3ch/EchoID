@@ -29,6 +29,7 @@ import {
 
 type Page = "Discover" | "Your library" | "History" | "Settings" | "Account";
 type SearchMode = "Sound" | "Lyrics" | "Hum" | "Describe";
+type CloudSession = { access_token: string; user: { id: string; email?: string } };
 type Song = {
   title: string;
   artist: string;
@@ -85,6 +86,12 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Song[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [cloudSession, setCloudSession] = useState<CloudSession | null>(null);
+  const [password, setPassword] = useState("");
+  const [cloudBusy, setCloudBusy] = useState(false);
+  const cloudUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(/\/$/, "");
+  const cloudAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+  const cloudConfigured = Boolean(cloudUrl && cloudAnonKey);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -97,6 +104,7 @@ export default function Home() {
     setLanguage(readStored<string>("echoid:language", "English"));
     setName(readStored<string>("echoid:name", ""));
     setEmail(readStored<string>("echoid:email", ""));
+    setCloudSession(readStored<CloudSession | null>("echoid:cloud-session", null));
     setStorageReady(true);
 
     fetch("/api/recognize", { cache: "no-store" })
@@ -281,6 +289,58 @@ export default function Home() {
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
+  }
+
+
+  async function cloudAuth(action: "signup" | "signin") {
+    if (!cloudConfigured) { setNotice("Configure Supabase URL and anon key first."); return; }
+    if (!email.trim() || !password) { setNotice("Enter your email and password."); return; }
+    setCloudBusy(true);
+    try {
+      const endpoint = action === "signup" ? "/auth/v1/signup" : "/auth/v1/token?grant_type=password";
+      const response = await fetch(cloudUrl + endpoint, { method: "POST", headers: { "Content-Type": "application/json", apikey: cloudAnonKey }, body: JSON.stringify({ email: email.trim(), password }), cache: "no-store" });
+      const data = await response.json() as CloudSession & { msg?: string; error_description?: string; error?: string };
+      if (!response.ok) throw new Error(data.msg || data.error_description || data.error || "Cloud authentication failed.");
+      if (!data.access_token || !data.user?.id) { setNotice("Account created. Verify your email if required, then sign in."); return; }
+      setCloudSession(data);
+      window.localStorage.setItem("echoid:cloud-session", JSON.stringify(data));
+      await loadCloudLibrary(data);
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Cloud sign-in failed."); }
+    finally { setCloudBusy(false); }
+  }
+
+  async function loadCloudLibrary(session = cloudSession) {
+    if (!session || !cloudConfigured) return;
+    setCloudBusy(true);
+    try {
+      const response = await fetch(cloudUrl + "/rest/v1/echoid_library?select=saved,history&user_id=eq." + encodeURIComponent(session.user.id) + "&limit=1", { headers: { apikey: cloudAnonKey, Authorization: "Bearer " + session.access_token }, cache: "no-store" });
+      if (!response.ok) throw new Error("Cloud load failed. Check the Supabase table and RLS policies.");
+      const rows = await response.json() as Array<{ saved?: Song[]; history?: Song[] }>;
+      if (rows[0]) { setSaved(Array.isArray(rows[0].saved) ? rows[0].saved : []); setHistory(Array.isArray(rows[0].history) ? rows[0].history : []); setNotice("Cloud library loaded."); }
+      else setNotice("Account connected. Sync your current library to create its cloud copy.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Cloud load failed."); }
+    finally { setCloudBusy(false); }
+  }
+
+  async function syncCloudLibrary() {
+    if (!cloudSession || !cloudConfigured) return;
+    setCloudBusy(true);
+    try {
+      const response = await fetch(cloudUrl + "/rest/v1/echoid_library?on_conflict=user_id", {
+        method: "POST",
+        headers: { apikey: cloudAnonKey, Authorization: "Bearer " + cloudSession.access_token, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify({ user_id: cloudSession.user.id, saved, history, updated_at: new Date().toISOString() }), cache: "no-store",
+      });
+      if (!response.ok) throw new Error("Cloud sync failed. Confirm the Supabase SQL schema and RLS policies.");
+      setNotice("Library and history synced to your Supabase account.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Cloud sync failed."); }
+    finally { setCloudBusy(false); }
+  }
+
+  function cloudSignOut() {
+    setCloudSession(null); setPassword("");
+    window.localStorage.removeItem("echoid:cloud-session");
+    setNotice("Signed out. Local data remains on this device.");
   }
 
   async function runTextSearch(event: React.FormEvent<HTMLFormElement>) {
@@ -669,11 +729,23 @@ export default function Home() {
               </div>
               <div className="account-card">
                 <div className="account-avatar"><UserRound size={30} /></div>
-                <h2>Guest profile</h2>
-                <p>No account is created and no profile data is uploaded.</p>
-                <label>Display name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Your name" /></label>
-                <label>Email address<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" /></label>
-                <div className="inline-notice">This profile is local only. Cloud sync and sign-in are not enabled.</div>
+                <h2>{cloudSession ? "Cloud account connected" : "Your EchoID account"}</h2>
+                <p>{cloudSession ? "Signed in as " + (cloudSession.user.email || email) : "Sign in or create an account to sync your music library."}</p>
+                {!cloudSession && <>
+                  <label>Display name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Your name (optional)" /></label>
+                  <label>Email address<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" autoComplete="email" /></label>
+                  <label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Password" autoComplete="current-password" /></label>
+                  <div className="track-actions">
+                    <button className="primary-button" disabled={cloudBusy} onClick={() => void cloudAuth("signin")}>{cloudBusy ? "Please wait…" : "Sign in"}</button>
+                    <button className="secondary-button" disabled={cloudBusy} onClick={() => void cloudAuth("signup")}>Create account</button>
+                  </div>
+                </>}
+                {cloudSession && <div className="track-actions">
+                  <button className="primary-button" disabled={cloudBusy} onClick={() => void syncCloudLibrary()}>{cloudBusy ? "Syncing…" : "Sync library now"}</button>
+                  <button className="secondary-button" disabled={cloudBusy} onClick={() => void loadCloudLibrary()}>Load cloud library</button>
+                  <button className="danger-button" onClick={cloudSignOut}>Sign out</button>
+                </div>}
+                <div className="inline-notice">{cloudConfigured ? "Supabase is configured. Apply the SQL setup in README and enable email authentication." : "Cloud sync needs NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in the environment. Never use a service-role key in the browser."}</div>
               </div>
             </section>
           )}
