@@ -23,7 +23,6 @@ import {
   SlidersHorizontal,
   UserRound,
   ExternalLink,
-  Disc3,
   LoaderCircle,
 } from "lucide-react";
 
