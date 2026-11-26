@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
-import { AudioLines, Bookmark, Link2, ListMusic, Music2, Plus, Share2, Trash2 } from "lucide-react";
+import { AudioLines, Link2, ListMusic, Music2, Plus, Share2, Trash2 } from "lucide-react";
 
 type Track = { title: string; artist: string; album?: string; genre?: string; artworkUrl?: string; songLink?: string; releaseDate?: string };
 type Playlist = { id: string; name: string; description: string; songs: Track[]; shareUrl?: string; createdAt: string };

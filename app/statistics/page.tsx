@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { AudioLines, BarChart3, Clock3, Heart, Music2 } from "lucide-react";
+import { AudioLines, BarChart3, Clock3, Heart } from "lucide-react";
 
 type Track = { title: string; artist: string; genre?: string; discoveredAt?: string };
 type Playlist = { id: string; name: string; songs?: Track[] };

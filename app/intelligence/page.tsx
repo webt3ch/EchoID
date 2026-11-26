@@ -82,11 +82,11 @@ export default function IntelligencePage() {
         <Link className="brand" href="/"><span className="brand-mark"><AudioLines size={21} /></span><span>echo<span className="brand-light">id</span></span></Link>
         <div className="side-label">ECHOID INTELLIGENCE</div>
         <nav className="side-nav">
-          <Link className="nav-item" href="/">Discover</Link>
-          <Link className="nav-item active" href="/intelligence">Intelligence</Link>
-          <Link className="nav-item" href="/playlists">Playlists</Link>
-          <Link className="nav-item" href="/statistics">Statistics</Link>
-          <Link className="nav-item" href="/hum">Hum 2.0</Link>
+          <Link className="nav-item" href="/">{t("Discover")}</Link>
+          <Link className="nav-item active" href="/intelligence">{t("Intelligence")}</Link>
+          <Link className="nav-item" href="/playlists">{t("Playlists")}</Link>
+          <Link className="nav-item" href="/statistics">{t("Statistics")}</Link>
+          <Link className="nav-item" href="/hum">{t("Hum 2.0")}</Link>
         </nav>
       </aside>
       <section className="main-content">
