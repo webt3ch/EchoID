@@ -28,7 +28,7 @@ export default async function SharedPlaylistPage({ params }: { params: Promise<{
           <div className="eyebrow"><span /> ECHOID COMMUNITY</div>
           <h1>{playlist.name}</h1>
           <p>{playlist.description || "A playlist shared with EchoID."}</p>
-          <div className="result-list">{(playlist.tracks || []).map((track, index) => <article className="result-row" key={track.title + track.artist + index}>
+          <div className="result-list">{(playlist.tracks || []).map((track, index) => <article className="result-row" key={(track.title || "untitled") + (track.artist || "unknown") + index}>
             <div className="cover">{track.artworkUrl ? <img src={track.artworkUrl} alt="" /> : <Music2 size={21} />}</div>
             <div className="song-meta"><strong>{track.title || "Untitled"}</strong><span>{track.artist || "Unknown artist"}{track.album ? " · " + track.album : ""}</span></div>
             {track.songLink?.startsWith("https://") && <a className="text-link" href={track.songLink} target="_blank" rel="noreferrer">Open <span>↗</span></a>}
