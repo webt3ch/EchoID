@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
+export const maxDuration = 25;
 
-const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
+const MAX_AUDIO_BYTES = 4 * 1024 * 1024;
 const AUDD_ENDPOINT = "https://api.audd.io/";
 
 type AudDResult = {
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
 
   if (contentLength > MAX_AUDIO_BYTES + 64 * 1024) {
     return json(
-      { error: "audio_too_large", message: "Audio files must be 10 MB or smaller." },
+      { error: "audio_too_large", message: "Audio files must be 4 MB or smaller." },
       413,
     );
   }
@@ -86,7 +87,7 @@ export async function POST(request: Request) {
 
   if (audio.size > MAX_AUDIO_BYTES) {
     return json(
-      { error: "audio_too_large", message: "Audio files must be 10 MB or smaller." },
+      { error: "audio_too_large", message: "Audio files must be 4 MB or smaller." },
       413,
     );
   }
