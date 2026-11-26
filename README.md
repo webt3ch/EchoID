@@ -85,3 +85,26 @@ npm run build
 ```
 
 The GitHub Actions workflow runs the production build on pushes and pull requests targeting `main`.
+
+
+## EchoID V2 roadmap implementation
+
+The V2 product surfaces include:
+- **Intelligence:** mood/descriptor catalog expansion, Song DNA from verified Apple catalog fields, and catalog-based related-track discovery.
+- **Smart Library:** local playlists, Supabase playlist snapshot sync, and public share links.
+- **Public identity:** owner-controlled public profiles and published collections protected by Supabase Row Level Security.
+- **Hum 2.0 beta:** browser-side monophonic pitch contour extraction. It does not upload microphone audio and does not yet identify a commercial track; that requires a licensed/searchable melody fingerprint corpus.
+- **Statistics:** local discovery, artist, genre and timeline summaries. Timeline counts apply only to history items created with timestamps.
+- **PWA:** web app manifest, SVG app icon and a conservative service worker app-shell cache.
+- **Internationalization:** English, Italian and Spanish translations for the primary navigation and discovery interface.
+
+### V2 database setup
+Run the SQL in supabase/schema.sql in the Supabase SQL Editor. It adds the playlists field to the library table and creates echoid_profiles and echoid_public_playlists, with owner-scoped write policies and public read policies only for content marked public.
+
+### Catalog data limitations
+The public iTunes Search/Lookup catalog provides fields such as artist, album, genre, artwork, release date, track duration and catalog URLs. It does not provide reliable BPM, musical key, energy or danceability fields. EchoID displays these as unavailable rather than estimating them. Mood Search currently expands recognized mood/genre descriptors into catalog queries; it is not an LLM or vector-embedding search service.
+
+### External configuration
+- NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are required for account sync, profile publishing and public playlist publishing.
+- AUDD_API_TOKEN is required for recorded-audio fingerprint recognition. Hum 2.0 pitch analysis is local and does not depend on AudD.
+- Public profiles and playlist sharing require Email/password sign-in and the V2 SQL schema. Users choose whether a profile is public; playlist links are public snapshots.

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { translate } from "../lib/i18n";
 import {
   AudioLines,
   Search,
@@ -41,6 +42,13 @@ type Song = {
   deezerUrl?: string;
   releaseDate?: string;
   timecode?: string;
+  genre?: string;
+  artistId?: number;
+  artistUrl?: string;
+  trackId?: number;
+  trackTimeMillis?: number;
+  lyricSnippet?: string;
+  discoveredAt?: string;
 };
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
@@ -91,6 +99,7 @@ export default function Home() {
   const cloudUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(/\/$/, "");
   const cloudAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
   const cloudConfigured = Boolean(cloudUrl && cloudAnonKey);
+  const t = (value: string) => translate(value, language);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -105,6 +114,7 @@ export default function Home() {
     setEmail(readStored<string>("echoid:email", ""));
     setCloudSession(readStored<CloudSession | null>("echoid:cloud-session", null));
     setStorageReady(true);
+    if ("serviceWorker" in navigator) void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
 
     fetch("/api/recognize", { cache: "no-store" })
       .then((response) => response.json())
@@ -197,7 +207,7 @@ export default function Home() {
 
       setCurrentTrack(track);
       setHistory((previous) =>
-        [track, ...previous.filter((item) => item.title !== track.title || item.artist !== track.artist)].slice(0, 30),
+        [{ ...track, discoveredAt: new Date().toISOString() }, ...previous.filter((item) => item.title !== track.title || item.artist !== track.artist)].slice(0, 30),
       );
       setNotice("Track identified successfully.");
     } catch (error) {
@@ -312,10 +322,10 @@ export default function Home() {
     if (!session || !cloudConfigured) return;
     setCloudBusy(true);
     try {
-      const response = await fetch(cloudUrl + "/rest/v1/echoid_library?select=saved,history&user_id=eq." + encodeURIComponent(session.user.id) + "&limit=1", { headers: { apikey: cloudAnonKey, Authorization: "Bearer " + session.access_token }, cache: "no-store" });
+      const response = await fetch(cloudUrl + "/rest/v1/echoid_library?select=saved,history,playlists&user_id=eq." + encodeURIComponent(session.user.id) + "&limit=1", { headers: { apikey: cloudAnonKey, Authorization: "Bearer " + session.access_token }, cache: "no-store" });
       if (!response.ok) throw new Error("Cloud load failed. Check the Supabase table and RLS policies.");
-      const rows = await response.json() as Array<{ saved?: Song[]; history?: Song[] }>;
-      if (rows[0]) { setSaved(Array.isArray(rows[0].saved) ? rows[0].saved : []); setHistory(Array.isArray(rows[0].history) ? rows[0].history : []); setNotice("Cloud library loaded."); }
+      const rows = await response.json() as Array<{ saved?: Song[]; history?: Song[]; playlists?: unknown[] }>;
+      if (rows[0]) { setSaved(Array.isArray(rows[0].saved) ? rows[0].saved : []); setHistory(Array.isArray(rows[0].history) ? rows[0].history : []); window.localStorage.setItem("echoid:playlists", JSON.stringify(Array.isArray(rows[0].playlists) ? rows[0].playlists : [])); setNotice("Cloud library loaded."); }
       else setNotice("Account connected. Sync your current library to create its cloud copy.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Cloud load failed."); }
     finally { setCloudBusy(false); }
@@ -328,10 +338,10 @@ export default function Home() {
       const response = await fetch(cloudUrl + "/rest/v1/echoid_library?on_conflict=user_id", {
         method: "POST",
         headers: { apikey: cloudAnonKey, Authorization: "Bearer " + cloudSession.access_token, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
-        body: JSON.stringify({ user_id: cloudSession.user.id, saved, history, updated_at: new Date().toISOString() }), cache: "no-store",
+        body: JSON.stringify({ user_id: cloudSession.user.id, saved, history, playlists: readStored<unknown[]>("echoid:playlists", []), updated_at: new Date().toISOString() }), cache: "no-store",
       });
       if (!response.ok) throw new Error("Cloud sync failed. Confirm the Supabase SQL schema and RLS policies.");
-      setNotice("Library and history synced to your Supabase account.");
+      setNotice("Library, history and playlists synced to your Supabase account.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Cloud sync failed."); }
     finally { setCloudBusy(false); }
   }
@@ -354,7 +364,7 @@ export default function Home() {
     setNotice("");
     try {
       const response = await fetch("/api/search?mode=" + mode.toLowerCase() + "&q=" + encodeURIComponent(query), { cache: "no-store" });
-      const data = (await response.json()) as { message?: string; tracks?: Array<{ title: string; artist: string; album?: string; artworkUrl?: string; songLink?: string; releaseDate?: string }> };
+      const data = (await response.json()) as { message?: string; tracks?: Array<{ title: string; artist: string; album?: string; artworkUrl?: string; songLink?: string; releaseDate?: string; genre?: string; artistId?: number; artistUrl?: string; trackId?: number; trackTimeMillis?: number; lyricSnippet?: string }> };
       if (!response.ok) throw new Error(data.message || "Search failed.");
       const results = (data.tracks ?? []).map((track) => ({
         title: track.title,
@@ -364,6 +374,12 @@ export default function Home() {
         artworkUrl: track.artworkUrl,
         songLink: track.songLink,
         releaseDate: track.releaseDate,
+        genre: track.genre,
+        artistId: track.artistId,
+        artistUrl: track.artistUrl,
+        trackId: track.trackId,
+        trackTimeMillis: track.trackTimeMillis,
+        lyricSnippet: track.lyricSnippet,
       }));
       setSearchResults(results);
       setNotice(results.length ? "Found " + results.length + " result(s)." : "No matching tracks found. Try a shorter phrase or a few distinctive words.");
@@ -377,7 +393,7 @@ export default function Home() {
   function selectSearchResult(song: Song) {
     setCurrentTrack(song);
     setHistory((previous) =>
-      [song, ...previous.filter((item) => item.title !== song.title || item.artist !== song.artist)].slice(0, 30),
+      [{ ...song, discoveredAt: new Date().toISOString() }, ...previous.filter((item) => item.title !== song.title || item.artist !== song.artist)].slice(0, 30),
     );
     setNotice("Track added to your discovery history.");
   }
@@ -393,7 +409,8 @@ export default function Home() {
   function clearLocalData() {
     setSaved([]);
     setHistory([]);
-    setNotice("Saved songs and discovery history have been cleared from this browser.");
+    window.localStorage.removeItem("echoid:playlists");
+    setNotice("Saved songs, playlists and discovery history have been cleared from this browser.");
   }
 
   const nav = (target: Page, Icon: typeof Search) => (
@@ -405,7 +422,7 @@ export default function Home() {
       }}
     >
       <Icon size={17} />
-      {target}
+      {t(target)}
     </button>
   );
 
@@ -416,18 +433,23 @@ export default function Home() {
           <span className="brand-mark"><AudioLines size={21} /></span>
           <span>echo<span className="brand-light">id</span></span>
         </button>
-        <div className="side-label">WORKSPACE</div>
+        <div className="side-label">{t("WORKSPACE")}</div>
         <nav className="side-nav">
           {nav("Discover", Search)}
           {nav("Your library", Library)}
           {nav("History", HistoryIcon)}
+          <a className="nav-item" href="/intelligence"><Sparkles size={17} /> {t("Intelligence")}</a>
+          <a className="nav-item" href="/playlists"><Library size={17} /> {t("Playlists")}</a>
+          <a className="nav-item" href="/statistics"><HistoryIcon size={17} /> {t("Statistics")}</a>
+          <a className="nav-item" href="/hum"><Mic size={17} /> {t("Hum 2.0")}</a>
+          <a className="nav-item" href="/profile"><UserRound size={17} /> {t("Public profile")}</a>
         </nav>
         <div className="side-bottom">
           <div className="upgrade-card">
             <div className="upgrade-icon"><Sparkles size={17} /></div>
-            <strong>Find your next favorite</strong>
-            <p>Explore music beyond the songs you already know.</p>
-            <button onClick={() => setPage("Discover")}>Explore discovery <ArrowUpRight size={14} /></button>
+            <strong>{t("Find your next favorite")}</strong>
+            <p>{t("Explore music beyond the songs you already know.")}</p>
+            <button onClick={() => setPage("Discover")}>{t("Explore discovery")} <ArrowUpRight size={14} /></button>
           </div>
           {nav("Settings", Settings2)}
           {nav("Account", UserRound)}
@@ -436,7 +458,7 @@ export default function Home() {
 
       <section className="main-content">
         <header className="topbar">
-          <div className="breadcrumb">Workspace <span>/</span> <strong>{page}</strong></div>
+          <div className="breadcrumb">{t("WORKSPACE")} <span>/</span> <strong>{t(page)}</strong></div>
           <span className={"status-pill " + (providerConfigured ? "status-ready" : "status-pending")}>
             <i /> {providerConfigured ? "AudD connected" : "AudD token required"}
           </span>
@@ -447,9 +469,9 @@ export default function Home() {
             <>
               <div className="hero-heading">
                 <div>
-                  <div className="eyebrow"><span /> MUSIC DISCOVERY, REIMAGINED</div>
-                  <h1>Every song has<br />a <span>story.</span></h1>
-                  <p>Identify the music playing around you. Record a short sample or upload an audio clip to discover the track.</p>
+                  <div className="eyebrow"><span /> {t("MUSIC DISCOVERY, REIMAGINED")}</div>
+                  <h1>{t("Every song has")}<br /><span>{t("a story.")}</span></h1>
+                  <p>{t("Identify the music playing around you. Record a short sample or upload an audio clip to discover the track.")}</p>
                 </div>
                 <div className="hero-art">
                   <div className="orb orb-one" />
@@ -473,7 +495,7 @@ export default function Home() {
                       }}
                     >
                       {item === "Sound" ? <AudioLines size={16} /> : item === "Lyrics" ? <Search size={16} /> : item === "Hum" ? <Mic size={16} /> : <Sparkles size={16} />}
-                      {item}
+                      {t(item)}
                     </button>
                   ))}
                 </div>
@@ -538,7 +560,7 @@ export default function Home() {
                           {searchResults.map((song, index) => (
                             <article className="result-row" key={song.title + song.artist + index}>
                               <Cover song={song} />
-                              <div className="song-meta"><strong>{song.title}</strong><span>{song.artist}{song.album ? " · " + song.album : ""}</span></div>
+                              <div className="song-meta"><strong>{song.title}</strong><span>{song.artist}{song.album ? " · " + song.album : ""}{song.lyricSnippet ? " — “" + song.lyricSnippet + "”" : ""}</span></div>
                               <button className="round-action" onClick={() => selectSearchResult(song)} aria-label={"Open " + song.title}><ArrowUpRight size={16} /></button>
                             </article>
                           ))}
@@ -745,6 +767,7 @@ export default function Home() {
                   <button className="danger-button" onClick={cloudSignOut}>Sign out</button>
                 </div>}
                 <div className="inline-notice">{cloudConfigured ? "Supabase is configured. Apply the SQL setup in README and enable email authentication." : "Cloud sync needs NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in the environment. Never use a service-role key in the browser."}</div>
+                <div className="track-actions"><a className="secondary-button" href="/profile">Public profile</a><a className="secondary-button" href="/playlists">Manage playlists</a></div>
               </div>
             </section>
           )}
