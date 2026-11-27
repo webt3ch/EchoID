@@ -54,6 +54,16 @@ type Song = {
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const MAX_RECORDING_SECONDS = 12;
 
+function EchoMark({ size = 21 }: { size?: number }) {
+  return (
+    <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="1.7" fill="currentColor" />
+      <path d="M8.2 8.2a5.4 5.4 0 0 0 0 7.6M15.8 8.2a5.4 5.4 0 0 1 0 7.6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <path d="M5.2 5.2a9.6 9.6 0 0 0 0 13.6M18.8 5.2a9.6 9.6 0 0 1 0 13.6" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" opacity=".72" />
+    </svg>
+  );
+}
+
 function Cover({ song, large = false }: { song: Song; large?: boolean }) {
   return (
     <div
@@ -93,6 +103,8 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Song[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [libraryQuery, setLibraryQuery] = useState("");
   const [cloudSession, setCloudSession] = useState<CloudSession | null>(null);
   const [password, setPassword] = useState("");
   const [cloudBusy, setCloudBusy] = useState(false);
@@ -104,6 +116,7 @@ export default function Home() {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recordingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const recordingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     setSaved(readStored<Song[]>("echoid:saved", []));
@@ -139,6 +152,7 @@ export default function Home() {
   useEffect(() => {
     return () => {
       if (recordingTimerRef.current) clearTimeout(recordingTimerRef.current);
+      if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
       if (recorderRef.current?.state === "recording") recorderRef.current.stop();
       streamRef.current?.getTracks().forEach((track) => track.stop());
     };
@@ -265,6 +279,10 @@ export default function Home() {
       };
       recorder.onerror = () => {
         setIsRecording(false);
+        if (recordingTimerRef.current) clearTimeout(recordingTimerRef.current);
+        if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
+        recordingTimerRef.current = null;
+        recordingIntervalRef.current = null;
         stream.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
         setNotice("The microphone recording failed. Try uploading an audio file.");
@@ -273,6 +291,8 @@ export default function Home() {
         setIsRecording(false);
         recorderRef.current = null;
         if (recordingTimerRef.current) clearTimeout(recordingTimerRef.current);
+        if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
+        recordingIntervalRef.current = null;
         recordingTimerRef.current = null;
         stream.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
@@ -284,8 +304,12 @@ export default function Home() {
       };
 
       recorder.start(250);
+      setRecordingSeconds(0);
       setIsRecording(true);
       setNotice("Listening for up to 12 seconds. Tap the button again to stop early.");
+      recordingIntervalRef.current = setInterval(() => {
+        setRecordingSeconds((seconds) => Math.min(seconds + 1, MAX_RECORDING_SECONDS));
+      }, 1000);
       recordingTimerRef.current = setTimeout(() => {
         if (recorder.state === "recording") recorder.stop();
       }, MAX_RECORDING_SECONDS * 1000);
@@ -295,6 +319,10 @@ export default function Home() {
           ? "Microphone permission was denied. Allow microphone access or upload an audio file."
           : "Could not start the microphone. Check your browser permissions and try again.";
       setNotice(message);
+      if (recordingTimerRef.current) clearTimeout(recordingTimerRef.current);
+      if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
+      recordingTimerRef.current = null;
+      recordingIntervalRef.current = null;
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
@@ -426,11 +454,15 @@ export default function Home() {
     </button>
   );
 
+  const filteredSaved = saved.filter((song) =>
+    `${song.title} ${song.artist} ${song.album}`.toLocaleLowerCase().includes(libraryQuery.trim().toLocaleLowerCase()),
+  );
+
   return (
     <main className={"app-shell " + (dark ? "" : "light-theme")}>
       <aside className="sidebar">
-        <button className="brand" onClick={() => setPage("Discover")}>
-          <span className="brand-mark"><AudioLines size={21} /></span>
+        <button className="brand" onClick={() => { setPage("Discover"); setNotice(""); }}>
+          <span className="brand-mark"><EchoMark /></span>
           <span>echo<span className="brand-light">id</span></span>
         </button>
         <div className="side-label">{t("WORKSPACE")}</div>
@@ -476,7 +508,7 @@ export default function Home() {
                 <div className="hero-art">
                   <div className="orb orb-one" />
                   <div className="orb orb-two" />
-                  <div className="orb-core"><AudioLines size={35} /></div>
+                  <div className="orb-core"><EchoMark size={35} /></div>
                   <div className="orbit orbit-one" />
                   <div className="orbit orbit-two" />
                 </div>
@@ -515,7 +547,8 @@ export default function Home() {
                         <span className="pulse pulse-b" />
                       </div>
                       <h2>{isRecognizing ? "Listening to your sample…" : isRecording ? "Capturing the sound…" : "What’s that song?"}</h2>
-                      <p>{isRecording ? "Tap the button to stop and identify, or wait for the 12-second capture." : "Tap to record up to 12 seconds of music from your surroundings."}</p>
+                      <p>{isRecording ? `${t("Recording in progress")} · ${recordingSeconds}s / ${MAX_RECORDING_SECONDS}s · ${t("Tap to identify now")}` : "Tap to record up to 12 seconds of music from your surroundings."}</p>
+                      {isRecording && <div className="recording-progress" role="progressbar" aria-label={t("Recording progress")} aria-valuemin={0} aria-valuemax={MAX_RECORDING_SECONDS} aria-valuenow={recordingSeconds}><span style={{ width: `${(recordingSeconds / MAX_RECORDING_SECONDS) * 100}%` }} /></div>}
                       <div className="search-divider"><span>OR UPLOAD A CLIP</span></div>
                       <label className={"upload-button " + (isRecognizing || isRecording ? "is-disabled" : "")}>
                         <Upload size={16} /> Upload an audio file <span>MP3, WAV, M4A · max 10 MB</span>
@@ -543,7 +576,8 @@ export default function Home() {
                         <span className="pulse pulse-a" /><span className="pulse pulse-b" />
                       </div>
                       <h2>{isRecording ? "Recording your melody…" : "Hum a melody."}</h2>
-                      <p>Record up to 12 seconds of humming. AudD is optimized for recorded music, so humming matches are experimental and not guaranteed.</p>
+                      <p>{isRecording ? `${t("Recording in progress")} · ${recordingSeconds}s / ${MAX_RECORDING_SECONDS}s · ${t("Tap to identify now")}` : "Record up to 12 seconds of humming. AudD is optimized for recorded music, so humming matches are experimental and not guaranteed."}</p>
+                      {isRecording && <div className="recording-progress" role="progressbar" aria-label={t("Recording progress")} aria-valuemin={0} aria-valuemax={MAX_RECORDING_SECONDS} aria-valuenow={recordingSeconds}><span style={{ width: `${(recordingSeconds / MAX_RECORDING_SECONDS) * 100}%` }} /></div>}
                       <p className="privacy-note"><ShieldCheck size={13} /> Your recording is sent to AudD only after you start capture.</p>
                     </>
                   ) : (
@@ -646,17 +680,27 @@ export default function Home() {
               </div>
               <div className="library-toolbar">
                 <span><Bookmark size={16} /> {saved.length} saved songs</span>
-                <button className="secondary-button" onClick={() => setPage("Discover")}><Search size={15} /> Discover music</button>
+                <div className="library-actions">
+                  {saved.length > 0 && <label className="library-search"><Search size={15} /><input value={libraryQuery} onChange={(event) => setLibraryQuery(event.target.value)} placeholder={t("Search songs or artists")} aria-label={t("Search saved songs")} />{libraryQuery && <button type="button" onClick={() => setLibraryQuery("")} aria-label={t("Clear search")}><X size={14} /></button>}</label>}
+                  <button className="secondary-button" onClick={() => setPage("Discover")}><Search size={15} /> Discover music</button>
+                </div>
               </div>
-              {saved.length ? (
+              {saved.length > 0 && filteredSaved.length > 0 ? (
                 <div className="result-list">
-                  {saved.map((song) => (
+                  {filteredSaved.map((song) => (
                     <article className="result-row" key={song.title + song.artist}>
                       <Cover song={song} />
                       <div className="song-meta"><strong>{song.title}</strong><span>{song.artist} · {song.album}</span></div>
                       <button className="round-action" onClick={() => toggleSaved(song)} aria-label="Remove saved song"><Heart size={17} fill="currentColor" /></button>
                     </article>
                   ))}
+                </div>
+              ) : saved.length > 0 ? (
+                <div className="empty-state compact-empty">
+                  <div className="empty-icon"><Search size={23} /></div>
+                  <h2>{t("No matching songs")}</h2>
+                  <p>{t("Try another title or artist, or clear your search.")}</p>
+                  <button className="secondary-button" onClick={() => setLibraryQuery("")}>{t("Clear search")}</button>
                 </div>
               ) : (
                 <div className="empty-state">
